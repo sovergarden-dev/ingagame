@@ -169,6 +169,13 @@ export const en = {
   "page.discover.title": "Discover",
   "page.watchlist.title": "Watchlist",
   "page.placeholder": "Foundation shell only — the full experience lands in a later pass.",
+
+  "pwa.title": "Install GamePulse",
+  "pwa.body": "Add it to your home screen for instant countdowns, offline shell and full-screen browsing.",
+  "pwa.install": "Install app",
+  "pwa.later": "Not now",
+  "pwa.installed": "GamePulse is installed on this device.",
+
 } as const;
 
 export type MessageKey = keyof typeof en;

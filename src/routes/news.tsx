@@ -29,7 +29,7 @@ function NewsPage() {
             <p className="text-sm font-medium leading-snug text-foreground">{a.title}</p>
             <p className="mt-1 text-xs text-muted-foreground">
               {a.source} ·{" "}
-              {new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
+              {new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(
                 new Date(a.publishedAt),
               )}
             </p>

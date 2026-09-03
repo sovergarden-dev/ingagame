@@ -16,6 +16,7 @@ import { PreferencesProvider } from "@/preferences/PreferencesProvider";
 import { LibraryProvider } from "@/library/LibraryProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "@/components/ui/sonner";
+import { InstallPrompt } from "@/components/gp/InstallPrompt";
 
 function NotFoundComponent() {
   return (
@@ -84,6 +85,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "author", content: "GamePulse" },
       { name: "theme-color", content: "#0b0b0f" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "GamePulse" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+
       { property: "og:type", content: "website" },
       { property: "og:site_name", content: "GamePulse" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -96,7 +101,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@500;600&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", type: "image/png", href: "/favicon.png" },
+      { rel: "apple-touch-icon", href: "/pwa-icon-192.png" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+
     ],
   }),
   shellComponent: RootShell,
@@ -137,6 +145,7 @@ function RootComponent() {
               {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
               <Outlet />
             </AppShell>
+            <InstallPrompt />
             <Toaster />
           </LibraryProvider>
         </I18nProvider>

@@ -1,10 +1,14 @@
 import type { ReleaseConfidence, ReleaseEvent, ReleasePrecision } from "./types";
 
-/** Human label for a release date honouring its precision. Never invents a clock time. */
+/**
+ * Human label for a release date honouring its precision.
+ * Always formatted in UTC so the server and the browser agree (no hydration drift).
+ */
 export function formatReleaseDate(
   date: string,
   precision: ReleasePrecision,
   locale = "en-US",
+  timeZone = "UTC",
 ): string {
   if (precision === "tba") return "TBA";
   const d = new Date(date);
@@ -13,11 +17,16 @@ export function formatReleaseDate(
       return new Intl.DateTimeFormat(locale, {
         dateStyle: "medium",
         timeStyle: "short",
+        timeZone,
       }).format(d);
     case "date":
-      return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(d);
+      return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(d);
     case "month":
-      return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(d);
+      return new Intl.DateTimeFormat(locale, {
+        month: "long",
+        year: "numeric",
+        timeZone,
+      }).format(d);
     case "quarter":
       return `Q${Math.floor(d.getUTCMonth() / 3) + 1} ${d.getUTCFullYear()}`;
     case "year":
@@ -26,14 +35,17 @@ export function formatReleaseDate(
 }
 
 export function shortDayLabel(date: string, locale = "en-US") {
-  return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(date)).toUpperCase();
-}
-
-export function shortDateLabel(date: string, locale = "en-US") {
-  return new Intl.DateTimeFormat(locale, { month: "short", day: "2-digit" })
+  return new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" })
     .format(new Date(date))
     .toUpperCase();
 }
+
+export function shortDateLabel(date: string, locale = "en-US") {
+  return new Intl.DateTimeFormat(locale, { month: "short", day: "2-digit", timeZone: "UTC" })
+    .format(new Date(date))
+    .toUpperCase();
+}
+
 
 export function dayKey(date: string) {
   return date.slice(0, 10);
