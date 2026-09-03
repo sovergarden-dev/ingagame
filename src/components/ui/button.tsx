@@ -14,15 +14,26 @@ const buttonVariants = cva(
         outline:
           "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
         secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        ghost: "hover:bg-secondary/70",
         link: "text-primary underline-offset-4 hover:underline",
+        /** Primary call to action on media-heavy surfaces. */
+        hero: "bg-accent text-accent-foreground gp-glow hover:brightness-110 active:scale-[0.98] transition-[filter,transform]",
+        /** Secondary CTA sitting on artwork. */
+        glass:
+          "gp-glass text-foreground hover:border-accent/60 hover:bg-surface-2/80 active:scale-[0.98] transition-[background-color,border-color,transform]",
+        /** Quiet outline used inside panels. */
+        quiet:
+          "border border-border bg-surface-2/60 text-foreground hover:border-border-strong hover:bg-surface-2",
       },
       size: {
         default: "h-9 px-4 py-2",
         sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-md px-8",
+        lg: "h-11 rounded-lg px-6",
         icon: "h-9 w-9",
+        "icon-sm": "h-8 w-8 rounded-md",
+        pill: "h-8 rounded-full px-4 text-xs",
       },
+
     },
     defaultVariants: {
       variant: "default",
