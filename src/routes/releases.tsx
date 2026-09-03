@@ -2,6 +2,12 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { CalendarDays, LayoutGrid, ListOrdered, Radar, Rows3, Timer } from "lucide-react";
 import { ReleaseRadar } from "@/components/gp/ReleaseRadar";
+import {
+  AgendaView,
+  CountdownView,
+  MonthView,
+  TimelineView,
+} from "@/components/gp/ReleaseViews";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { GameCard } from "@/components/gp/GameCard";
 import { EmptyState } from "@/components/gp/EmptyState";
