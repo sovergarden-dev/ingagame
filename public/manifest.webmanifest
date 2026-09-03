@@ -1,0 +1,22 @@
+{
+  "name": "GamePulse — Game Release Radar",
+  "short_name": "GamePulse",
+  "description": "Track every upcoming game release, delay, deal and giveaway across all platforms.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0b0f",
+  "theme_color": "#0b0b0f",
+  "categories": ["games", "entertainment", "news"],
+  "icons": [
+    { "src": "/pwa-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Releases", "url": "/releases" },
+    { "name": "Watchlist", "url": "/watchlist" },
+    { "name": "Deals", "url": "/deals" }
+  ]
+}
