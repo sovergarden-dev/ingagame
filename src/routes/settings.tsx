@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { LOCALES, type LocaleCode } from "@/i18n/locales";
 import { useI18n } from "@/i18n/I18nProvider";
-import type { MessageKey } from "@/i18n/messages";
+import { PLATFORMS } from "@/domain/platforms";
 import {
   usePreferences,
   type AccentPreset,
@@ -275,7 +275,7 @@ function SettingsPage() {
                 key={p}
                 className="rounded-full border border-accent/40 bg-accent-soft px-3 py-1 text-xs font-medium text-accent"
               >
-                {t(`platform.${p === "steam" || p === "epic" ? "pc" : p}` as MessageKey)}
+                {PLATFORMS[p].name}
               </li>
             ))}
           </ul>
