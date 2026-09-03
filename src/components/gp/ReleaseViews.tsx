@@ -144,9 +144,11 @@ export function MonthView({
     <div className="gp-panel p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h3 className="font-display text-lg font-bold text-foreground">
-          {new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(
-            cursor,
-          )}
+          {new Intl.DateTimeFormat(locale, {
+            month: "long",
+            year: "numeric",
+            timeZone: "UTC",
+          }).format(cursor)}
         </h3>
         <div className="flex items-center gap-1">
           <button

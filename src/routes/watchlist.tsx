@@ -13,10 +13,14 @@ export const Route = createFileRoute("/watchlist")({
       { title: "Watchlist & Alerts — GamePulse" },
       {
         name: "description",
-        content: "The games you wishlisted or follow, with countdowns and delay alerts in one list.",
+        content:
+          "The games you wishlisted or follow, with countdowns and delay alerts in one list.",
       },
       { property: "og:title", content: "Watchlist & Alerts — GamePulse" },
-      { property: "og:description", content: "Your wishlisted and followed games with countdowns." },
+      {
+        property: "og:description",
+        content: "Your wishlisted and followed games with countdowns.",
+      },
     ],
   }),
   component: WatchlistPage,

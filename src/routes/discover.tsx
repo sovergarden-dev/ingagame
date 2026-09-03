@@ -10,7 +10,8 @@ export const Route = createFileRoute("/discover")({
       { title: "Discover Games — GamePulse" },
       {
         name: "description",
-        content: "Browse games by genre, platform and hype, tuned to the platforms you actually own.",
+        content:
+          "Browse games by genre, platform and hype, tuned to the platforms you actually own.",
       },
       { property: "og:title", content: "Discover Games — GamePulse" },
       { property: "og:description", content: "Browse games by genre, platform and hype." },

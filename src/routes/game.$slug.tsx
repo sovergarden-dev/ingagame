@@ -112,7 +112,12 @@ function GameDetail() {
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <WishlistButton gameId={game.id} variant="full" />
-              <Button variant="glass" size="lg" onClick={() => toggleFollow(game.id)} aria-pressed={following}>
+              <Button
+                variant="glass"
+                size="lg"
+                onClick={() => toggleFollow(game.id)}
+                aria-pressed={following}
+              >
                 <Star className={cn(following && "fill-current")} />
                 {following ? t("action.following") : t("action.follow")}
               </Button>

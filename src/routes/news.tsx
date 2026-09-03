@@ -9,7 +9,8 @@ export const Route = createFileRoute("/news")({
       { title: "Gaming News & Official Updates — GamePulse" },
       {
         name: "description",
-        content: "Release announcements, delays and official patch notes, filtered to what you follow.",
+        content:
+          "Release announcements, delays and official patch notes, filtered to what you follow.",
       },
       { property: "og:title", content: "Gaming News & Official Updates — GamePulse" },
       { property: "og:description", content: "Announcements, delays and official updates." },

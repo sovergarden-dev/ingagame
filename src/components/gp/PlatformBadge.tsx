@@ -61,9 +61,7 @@ export function PlatformBadgeList({
       {shown.map((p) => (
         <PlatformBadge key={p} platform={p} size={size} />
       ))}
-      {rest > 0 && (
-        <span className="text-[10px] font-medium text-muted-foreground">+{rest}</span>
-      )}
+      {rest > 0 && <span className="text-[10px] font-medium text-muted-foreground">+{rest}</span>}
     </div>
   );
 }

@@ -26,12 +26,7 @@ export function ReleaseCard({
       : null;
 
   return (
-    <article
-      className={cn(
-        "group/card relative w-[150px] shrink-0 sm:w-[164px]",
-        className,
-      )}
-    >
+    <article className={cn("group/card relative w-[150px] shrink-0 sm:w-[164px]", className)}>
       <Link
         to="/game/$slug"
         params={{ slug: game.slug }}

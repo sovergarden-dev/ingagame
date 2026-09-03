@@ -69,14 +69,22 @@ function Home() {
       <div className="grid gap-4 lg:grid-cols-3">
         {/* My next releases */}
         <section className="gp-panel p-4 sm:p-5">
-          <SectionHeader title={t("section.myNextReleases")} viewAllTo="/watchlist" viewAllLabel={t("action.viewAll")} />
+          <SectionHeader
+            title={t("section.myNextReleases")}
+            viewAllTo="/watchlist"
+            viewAllLabel={t("action.viewAll")}
+          />
           <div className="mt-3 space-y-1">
             {myNext.length ? (
               myNext.map(({ game, event }) => (
                 <CountdownChip key={event.id} game={game} event={event} />
               ))
             ) : (
-              <EmptyState title={t("empty.title")} body={t("empty.body")} className="border-none shadow-none" />
+              <EmptyState
+                title={t("empty.title")}
+                body={t("empty.body")}
+                className="border-none shadow-none"
+              />
             )}
           </div>
         </section>
@@ -122,7 +130,11 @@ function Home() {
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Free right now */}
         <section className="gp-panel p-4 sm:p-5">
-          <SectionHeader title={t("section.freeNow")} viewAllTo="/free" viewAllLabel={t("action.viewAll")} />
+          <SectionHeader
+            title={t("section.freeNow")}
+            viewAllTo="/free"
+            viewAllLabel={t("action.viewAll")}
+          />
           <div className="mt-3 space-y-1">
             {GIVEAWAYS.map((g) => {
               const game = getGame(g.gameId);
@@ -144,7 +156,11 @@ function Home() {
 
         {/* Biggest deals */}
         <section className="gp-panel p-4 sm:p-5">
-          <SectionHeader title={t("section.deals")} viewAllTo="/deals" viewAllLabel={t("action.viewAll")} />
+          <SectionHeader
+            title={t("section.deals")}
+            viewAllTo="/deals"
+            viewAllLabel={t("action.viewAll")}
+          />
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <DealCard deal={DEALS[0]!} locale={locale} featured />
             <div className="space-y-1">
@@ -174,7 +190,11 @@ function Home() {
 
       {/* Recently released */}
       <section>
-        <SectionHeader title={t("section.recent")} viewAllTo="/releases" viewAllLabel={t("action.viewAll")} />
+        <SectionHeader
+          title={t("section.recent")}
+          viewAllTo="/releases"
+          viewAllLabel={t("action.viewAll")}
+        />
         <div className="gp-scroll-x mt-3 flex gap-3 pb-2">
           {RECENTLY_RELEASED.map(({ game }) => (
             <GameCard key={game.id} game={game} />

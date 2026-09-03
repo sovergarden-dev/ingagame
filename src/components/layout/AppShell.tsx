@@ -58,10 +58,7 @@ function NavList({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: (
           >
             <span className="relative flex items-center">
               {active && !collapsed && (
-                <span
-                  aria-hidden
-                  className="absolute -left-3 h-5 w-0.5 rounded-full bg-accent"
-                />
+                <span aria-hidden className="absolute -left-3 h-5 w-0.5 rounded-full bg-accent" />
               )}
               <Icon aria-hidden className={cn("size-4.5", active && "text-accent")} />
             </span>
@@ -121,10 +118,7 @@ function LanguageMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuLabel>{t("topbar.language")}</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={locale}
-          onValueChange={(v) => setLocale(v as LocaleCode)}
-        >
+        <DropdownMenuRadioGroup value={locale} onValueChange={(v) => setLocale(v as LocaleCode)}>
           {LOCALES.map((l) => (
             <DropdownMenuRadioItem key={l.code} value={l.code}>
               {l.native}
@@ -215,13 +209,23 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
       </aside>
 
-      <div className={cn("transition-[padding] duration-200", collapsed ? "md:pl-[76px]" : "md:pl-[248px]")}>
+      <div
+        className={cn(
+          "transition-[padding] duration-200",
+          collapsed ? "md:pl-[76px]" : "md:pl-[248px]",
+        )}
+      >
         {/* Top bar */}
         <header className="sticky top-0 z-30 border-b border-border gp-glass">
           <div className="flex h-14 items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-5">
             <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden" aria-label={t("nav.menu")}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                  aria-label={t("nav.menu")}
+                >
                   <Menu />
                 </Button>
               </SheetTrigger>
@@ -261,9 +265,17 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="hidden sm:block">
                 <PlatformsMenu />
               </span>
-              <Button variant="ghost" size="icon" aria-label={t("topbar.notifications")} className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t("topbar.notifications")}
+                className="relative"
+              >
                 <Bell />
-                <span aria-hidden className="absolute right-2 top-2 size-1.5 rounded-full bg-accent" />
+                <span
+                  aria-hidden
+                  className="absolute right-2 top-2 size-1.5 rounded-full bg-accent"
+                />
               </Button>
               <Link
                 to="/settings"

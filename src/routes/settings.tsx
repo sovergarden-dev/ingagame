@@ -266,9 +266,7 @@ function SettingsPage() {
         </Panel>
 
         <Panel title={t("topbar.platforms")}>
-          <p className="text-sm text-muted-foreground">
-            {t("page.placeholder")}
-          </p>
+          <p className="text-sm text-muted-foreground">{t("page.placeholder")}</p>
           <ul className="flex flex-wrap gap-2">
             {prefs.myPlatforms.map((p) => (
               <li
