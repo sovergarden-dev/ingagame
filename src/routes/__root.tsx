@@ -16,6 +16,7 @@ import { PreferencesProvider } from "@/preferences/PreferencesProvider";
 import { LibraryProvider } from "@/library/LibraryProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "@/components/ui/sonner";
+import { InstallPrompt } from "@/components/gp/InstallPrompt";
 
 function NotFoundComponent() {
   return (
@@ -144,6 +145,7 @@ function RootComponent() {
               {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
               <Outlet />
             </AppShell>
+            <InstallPrompt />
             <Toaster />
           </LibraryProvider>
         </I18nProvider>
