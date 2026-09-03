@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { CalendarDays, LayoutGrid, ListOrdered, Radar, Rows3, Timer } from "lucide-react";
 import { ReleaseRadar } from "@/components/gp/ReleaseRadar";
+import { AgendaView, CountdownView, MonthView, TimelineView } from "@/components/gp/ReleaseViews";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { GameCard } from "@/components/gp/GameCard";
 import { EmptyState } from "@/components/gp/EmptyState";
@@ -140,6 +141,10 @@ function Releases() {
       </div>
 
       {view === "rail" && <ReleaseRadar entries={entries} referenceDate={REFERENCE_DATE} />}
+      {view === "timeline" && <TimelineView entries={entries} />}
+      {view === "agenda" && <AgendaView entries={entries} />}
+      {view === "month" && <MonthView entries={entries} referenceDate={REFERENCE_DATE} />}
+      {view === "countdown" && <CountdownView entries={entries} />}
 
       {view === "recent" && (
         <section>
@@ -150,13 +155,6 @@ function Releases() {
             ))}
           </div>
         </section>
-      )}
-
-      {view !== "rail" && view !== "recent" && (
-        <EmptyState
-          title={t(VIEWS.find((v) => v.id === view)!.labelKey as MessageKey)}
-          body={t("views.placeholder")}
-        />
       )}
     </div>
   );

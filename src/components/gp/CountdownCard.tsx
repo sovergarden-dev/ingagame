@@ -79,7 +79,10 @@ export function CountdownHero({
           <div className="flex flex-wrap items-center gap-2">
             <p className="gp-eyebrow">{t("countdown.eyebrow")}</p>
             <ReleaseStatusBadge confidence={event.confidence} />
-            <ReleaseStateBadge state={event.state} {...(event.delayDays ? { delayDays: event.delayDays } : {})} />
+            <ReleaseStateBadge
+              state={event.state}
+              {...(event.delayDays ? { delayDays: event.delayDays } : {})}
+            />
           </div>
 
           <h1

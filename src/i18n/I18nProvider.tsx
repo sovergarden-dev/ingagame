@@ -26,10 +26,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     (key, vars) => {
       const raw = CATALOGUES[locale]?.[key] ?? en[key] ?? key;
       if (!vars) return raw;
-      return Object.entries(vars).reduce(
-        (acc, [k, v]) => acc.replaceAll(`{${k}}`, String(v)),
-        raw,
-      );
+      return Object.entries(vars).reduce((acc, [k, v]) => acc.replaceAll(`{${k}}`, String(v)), raw);
     },
     [locale],
   );

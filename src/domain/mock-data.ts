@@ -8,15 +8,7 @@ import cover7 from "@/assets/cover-7.jpg";
 import cover8 from "@/assets/cover-8.jpg";
 import heroBackdrop from "@/assets/hero-aetherfall.jpg";
 
-import type {
-  Article,
-  Deal,
-  Game,
-  Giveaway,
-  RegionLaunch,
-  ReleaseEvent,
-  Video,
-} from "./types";
+import type { Article, Deal, Game, Giveaway, RegionLaunch, ReleaseEvent, Video } from "./types";
 
 export const HERO_BACKDROP = heroBackdrop;
 
@@ -507,9 +499,21 @@ export const LAUNCH_WAVE: RegionLaunch[] = [
   { region: "Los Angeles", timezoneLabel: "PDT", localTime: "Sep 9, 07:00 PM" },
   { region: "New York", timezoneLabel: "EDT", localTime: "Sep 9, 10:00 PM" },
   { region: "London", timezoneLabel: "BST", localTime: "Sep 10, 03:00 AM" },
-  { region: "Ho Chi Minh City", timezoneLabel: "GMT+7", localTime: "Sep 10, 09:00 AM", isUserRegion: true },
+  {
+    region: "Ho Chi Minh City",
+    timezoneLabel: "GMT+7",
+    localTime: "Sep 10, 09:00 AM",
+    isUserRegion: true,
+  },
   { region: "Tokyo", timezoneLabel: "JST", localTime: "Sep 10, 11:00 AM" },
   { region: "Sydney", timezoneLabel: "AEST", localTime: "Sep 10, 12:00 PM" },
 ];
 
-export const TRENDING: Game[] = [GAMES[0]!, GAMES[4]!, GAMES[3]!, GAMES[12]!, GAMES[13]!, GAMES[7]!];
+export const TRENDING: Game[] = [
+  GAMES[0]!,
+  GAMES[4]!,
+  GAMES[3]!,
+  GAMES[12]!,
+  GAMES[13]!,
+  GAMES[7]!,
+];

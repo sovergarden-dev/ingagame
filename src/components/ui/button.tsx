@@ -33,7 +33,6 @@ const buttonVariants = cva(
         "icon-sm": "h-8 w-8 rounded-md",
         pill: "h-8 rounded-full px-4 text-xs",
       },
-
     },
     defaultVariants: {
       variant: "default",

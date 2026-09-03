@@ -5,13 +5,17 @@ import type { MessageKey } from "@/i18n/messages";
 import type { ReleaseConfidence, ReleaseKind, ReleaseState } from "@/domain/types";
 import { cn } from "@/lib/utils";
 
-const CONFIDENCE_STYLES: Record<ReleaseConfidence, { className: string; Icon: typeof BadgeCheck }> = {
-  confirmed: { className: "border-success/40 text-success bg-success/10", Icon: BadgeCheck },
-  high: { className: "border-info/40 text-info bg-info/10", Icon: Sparkles },
-  expected: { className: "border-warning/40 text-warning bg-warning/10", Icon: Clock3 },
-  unconfirmed: { className: "border-border-strong text-muted-foreground bg-surface-2", Icon: CircleHelp },
-  tba: { className: "border-border-strong text-muted-foreground bg-surface-2", Icon: CircleHelp },
-};
+const CONFIDENCE_STYLES: Record<ReleaseConfidence, { className: string; Icon: typeof BadgeCheck }> =
+  {
+    confirmed: { className: "border-success/40 text-success bg-success/10", Icon: BadgeCheck },
+    high: { className: "border-info/40 text-info bg-info/10", Icon: Sparkles },
+    expected: { className: "border-warning/40 text-warning bg-warning/10", Icon: Clock3 },
+    unconfirmed: {
+      className: "border-border-strong text-muted-foreground bg-surface-2",
+      Icon: CircleHelp,
+    },
+    tba: { className: "border-border-strong text-muted-foreground bg-surface-2", Icon: CircleHelp },
+  };
 
 /**
  * Confidence is progressive disclosure: the badge is compact, the reasoning
@@ -73,7 +77,13 @@ export function ReleaseKindBadge({ kind }: { kind: ReleaseKind }) {
   );
 }
 
-export function ReleaseStateBadge({ state, delayDays }: { state: ReleaseState; delayDays?: number }) {
+export function ReleaseStateBadge({
+  state,
+  delayDays,
+}: {
+  state: ReleaseState;
+  delayDays?: number;
+}) {
   const { t } = useI18n();
   if (state === "available") {
     return (

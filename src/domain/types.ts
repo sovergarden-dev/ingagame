@@ -4,15 +4,7 @@
  */
 
 export type PlatformId =
-  | "pc"
-  | "steam"
-  | "epic"
-  | "playstation"
-  | "xbox"
-  | "switch"
-  | "switch2"
-  | "mobile"
-  | "vr";
+  "pc" | "steam" | "epic" | "playstation" | "xbox" | "switch" | "switch2" | "mobile" | "vr";
 
 export type PlatformFamily = "pc" | "playstation" | "xbox" | "nintendo" | "mobile" | "vr";
 
