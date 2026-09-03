@@ -39,7 +39,7 @@ export function TimelineView({ entries }: { entries: RadarEntry[] }) {
           />
           <div className="flex items-baseline gap-2">
             <h3 className="font-display text-sm font-bold uppercase tracking-[0.14em] text-foreground">
-              {new Intl.DateTimeFormat(locale, { dateStyle: "full" }).format(new Date(key))}
+              {new Intl.DateTimeFormat(locale, { dateStyle: "full", timeZone: "UTC" }).format(new Date(key))}
             </h3>
             <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
               {items.length}

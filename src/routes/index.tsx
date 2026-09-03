@@ -219,7 +219,7 @@ function Home() {
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {article.source} ·{" "}
-                  {new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
+                  {new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(
                     new Date(article.publishedAt),
                   )}
                 </p>
