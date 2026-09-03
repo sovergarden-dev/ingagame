@@ -140,6 +140,10 @@ function Releases() {
       </div>
 
       {view === "rail" && <ReleaseRadar entries={entries} referenceDate={REFERENCE_DATE} />}
+      {view === "timeline" && <TimelineView entries={entries} />}
+      {view === "agenda" && <AgendaView entries={entries} />}
+      {view === "month" && <MonthView entries={entries} referenceDate={REFERENCE_DATE} />}
+      {view === "countdown" && <CountdownView entries={entries} />}
 
       {view === "recent" && (
         <section>
@@ -150,13 +154,6 @@ function Releases() {
             ))}
           </div>
         </section>
-      )}
-
-      {view !== "rail" && view !== "recent" && (
-        <EmptyState
-          title={t(VIEWS.find((v) => v.id === view)!.labelKey as MessageKey)}
-          body={t("views.placeholder")}
-        />
       )}
     </div>
   );
