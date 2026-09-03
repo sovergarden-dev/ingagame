@@ -15,6 +15,7 @@ import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as FreeRouteImport } from './routes/free'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as ReleasesRouteImport } from './routes/releases'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
 import { Route as GameSlugRouteImport } from './routes/game.$slug'
 
@@ -48,6 +49,11 @@ const ReleasesRoute = ReleasesRouteImport.update({
   path: '/releases',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WatchlistRoute = WatchlistRouteImport.update({
   id: '/watchlist',
   path: '/watchlist',
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/free': typeof FreeRoute
   '/news': typeof NewsRoute
   '/releases': typeof ReleasesRoute
+  '/settings': typeof SettingsRoute
   '/watchlist': typeof WatchlistRoute
   '/game/$slug': typeof GameSlugRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/free': typeof FreeRoute
   '/news': typeof NewsRoute
   '/releases': typeof ReleasesRoute
+  '/settings': typeof SettingsRoute
   '/watchlist': typeof WatchlistRoute
   '/game/$slug': typeof GameSlugRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/free': typeof FreeRoute
   '/news': typeof NewsRoute
   '/releases': typeof ReleasesRoute
+  '/settings': typeof SettingsRoute
   '/watchlist': typeof WatchlistRoute
   '/game/$slug': typeof GameSlugRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/free'
     | '/news'
     | '/releases'
+    | '/settings'
     | '/watchlist'
     | '/game/$slug'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/free'
     | '/news'
     | '/releases'
+    | '/settings'
     | '/watchlist'
     | '/game/$slug'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/free'
     | '/news'
     | '/releases'
+    | '/settings'
     | '/watchlist'
     | '/game/$slug'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   FreeRoute: typeof FreeRoute
   NewsRoute: typeof NewsRoute
   ReleasesRoute: typeof ReleasesRoute
+  SettingsRoute: typeof SettingsRoute
   WatchlistRoute: typeof WatchlistRoute
   GameSlugRoute: typeof GameSlugRoute
 }
@@ -178,6 +191,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReleasesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/watchlist': {
       id: '/watchlist'
       path: '/watchlist'
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   FreeRoute: FreeRoute,
   NewsRoute: NewsRoute,
   ReleasesRoute: ReleasesRoute,
+  SettingsRoute: SettingsRoute,
   WatchlistRoute: WatchlistRoute,
   GameSlugRoute: GameSlugRoute,
 }
