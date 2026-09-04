@@ -20,7 +20,8 @@ export const Route = createFileRoute("/deals")({
       { title: "Deals — GamePulse" },
       {
         name: "description",
-        content: "Track the biggest game discounts across stores, sorted by discount, price or expiry.",
+        content:
+          "Track the biggest game discounts across stores, sorted by discount, price or expiry.",
       },
       { property: "og:title", content: "Deals — GamePulse" },
       { property: "og:description", content: "The biggest game discounts across stores." },

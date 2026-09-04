@@ -20,7 +20,8 @@ export const Route = createFileRoute("/free")({
       { title: "Free Games & Giveaways — GamePulse" },
       {
         name: "description",
-        content: "Every game that is free to claim right now, with expiry countdowns you can trust.",
+        content:
+          "Every game that is free to claim right now, with expiry countdowns you can trust.",
       },
       { property: "og:title", content: "Free Games & Giveaways — GamePulse" },
       { property: "og:description", content: "Games free to claim right now, with expiry times." },
@@ -112,10 +113,7 @@ function FreePage() {
       freshness={{ state: "fresh", minutesAgo: 2 }}
     >
       {GIVEAWAYS.length === 0 ? (
-        <EmptyState
-          title={t("common.noResults")}
-          icon={<Gift aria-hidden className="size-5" />}
-        />
+        <EmptyState title={t("common.noResults")} icon={<Gift aria-hidden className="size-5" />} />
       ) : (
         <div className="space-y-8">
           {soon.length > 0 && (

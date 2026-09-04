@@ -501,7 +501,6 @@ export const GIVEAWAYS: Giveaway[] = [
   },
 ];
 
-
 export const ARTICLES: Article[] = [
   {
     id: "art-1",
@@ -551,7 +550,6 @@ export const ARTICLES: Article[] = [
     publishedAt: "2026-08-27T18:40:00Z",
   },
 ];
-
 
 export const VIDEOS: Video[] = [
   {

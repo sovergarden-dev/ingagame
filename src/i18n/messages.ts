@@ -214,7 +214,6 @@ export const en = {
   "common.reset": "Reset filters",
   "common.noResults": "No results match these filters.",
 
-
   "steam.title": "Steam Connection",
   "steam.body": "Link your Steam handle to pull your library and match releases you already own.",
   "steam.handle": "Steam handle or vanity URL",
@@ -231,11 +230,11 @@ export const en = {
   "steam.error.unknown": "Could not reach Steam. Try again in a moment.",
 
   "pwa.title": "Install GamePulse",
-  "pwa.body": "Add it to your home screen for instant countdowns, offline shell and full-screen browsing.",
+  "pwa.body":
+    "Add it to your home screen for instant countdowns, offline shell and full-screen browsing.",
   "pwa.install": "Install app",
   "pwa.later": "Not now",
   "pwa.installed": "GamePulse is installed on this device.",
-
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -289,7 +288,6 @@ const vi: Partial<Record<MessageKey, string>> = {
   "watchlist.browse": "Xem lịch phát hành",
   "common.reset": "Xoá bộ lọc",
   "common.noResults": "Không có kết quả phù hợp.",
-
 };
 
 export const CATALOGUES: Record<LocaleCode, Partial<Record<MessageKey, string>>> = {
