@@ -23,6 +23,7 @@ import {
   type ThemeMode,
   type TitleLanguage,
 } from "@/preferences/PreferencesProvider";
+import { SteamPanel } from "@/components/gp/SteamPanel";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings")({
@@ -263,6 +264,10 @@ function SettingsPage() {
               ]}
             />
           </Row>
+        </Panel>
+
+        <Panel title={t("steam.title")}>
+          <SteamPanel />
         </Panel>
 
         <Panel title={t("topbar.platforms")}>

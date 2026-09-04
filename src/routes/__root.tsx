@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import { PreferencesProvider } from "@/preferences/PreferencesProvider";
 import { LibraryProvider } from "@/library/LibraryProvider";
+import { SteamProvider } from "@/integrations/steam/SteamProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "@/components/ui/sonner";
 import { InstallPrompt } from "@/components/gp/InstallPrompt";
@@ -104,7 +105,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", type: "image/png", href: "/favicon.png" },
       { rel: "apple-touch-icon", href: "/pwa-icon-192.png" },
       { rel: "manifest", href: "/manifest.webmanifest" },
-
     ],
   }),
   shellComponent: RootShell,
@@ -141,12 +141,14 @@ function RootComponent() {
       <PreferencesProvider>
         <I18nProvider>
           <LibraryProvider>
-            <AppShell>
-              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-              <Outlet />
-            </AppShell>
-            <InstallPrompt />
-            <Toaster />
+            <SteamProvider>
+              <AppShell>
+                {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                <Outlet />
+              </AppShell>
+              <InstallPrompt />
+              <Toaster />
+            </SteamProvider>
           </LibraryProvider>
         </I18nProvider>
       </PreferencesProvider>
