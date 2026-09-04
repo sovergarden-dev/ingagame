@@ -9,6 +9,7 @@
 - Routes: /, /releases, /game/$slug, /deals, /free, /news, /discover, /watchlist, /settings
 - PWA: manifest, icons, install prompt (manifest-only, no offline worker)
 - Steam connection (mock provider): connect/resync/disconnect + owned library in Settings
+- Full surfaces for /deals (sort + store filters), /free (expiry countdowns), /news (source filters + lead story), /discover (search, genre/platform filters, sorting), /watchlist (wishlist/following tabs + released section)
 
 ## Next passes
 - Real data providers + Lovable Cloud backend (accounts, synced watchlist, notifications)
