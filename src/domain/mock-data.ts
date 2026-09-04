@@ -466,7 +466,6 @@ export const DEALS: Deal[] = [
   },
 ];
 
-
 export const GIVEAWAYS: Giveaway[] = [
   {
     id: "give-1",
@@ -484,7 +483,24 @@ export const GIVEAWAYS: Giveaway[] = [
     worth: 14.99,
     currency: "USD",
   },
+  {
+    id: "give-3",
+    gameId: "game-11",
+    store: "Prime Gaming",
+    endsAt: "2026-09-16T23:59:00Z",
+    worth: 24.99,
+    currency: "USD",
+  },
+  {
+    id: "give-4",
+    gameId: "game-9",
+    store: "Epic Games Store",
+    endsAt: "2026-09-04T15:00:00Z",
+    worth: 9.99,
+    currency: "USD",
+  },
 ];
+
 
 export const ARTICLES: Article[] = [
   {
