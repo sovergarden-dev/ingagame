@@ -1,17 +1,21 @@
 import type { ReactNode } from "react";
 import { SectionHeader } from "./SectionHeader";
-import { EmptyState } from "./EmptyState";
 import { FreshnessStatus } from "./FreshnessStatus";
+import type { FreshnessStatus as FreshnessStatusType } from "@/domain/types";
 import { useI18n } from "@/i18n/I18nProvider";
 
-/** Lightweight route shell for surfaces that land in a later pass. */
-export function PlaceholderPage({
+/** Standard route shell: eyebrow + title + description, freshness badge, toolbar slot. */
+export function PageShell({
   title,
   description,
+  toolbar,
+  freshness = { state: "fresh", minutesAgo: 0 },
   children,
 }: {
   title: string;
   description?: string;
+  toolbar?: ReactNode;
+  freshness?: FreshnessStatusType;
   children?: ReactNode;
 }) {
   const { t } = useI18n();
@@ -24,9 +28,10 @@ export function PlaceholderPage({
           {...(description ? { description } : {})}
           size="lg"
         />
-        <FreshnessStatus status={{ state: "fresh", minutesAgo: 0 }} />
+        <FreshnessStatus status={freshness} />
       </div>
-      {children ?? <EmptyState title={title} body={t("page.placeholder")} />}
+      {toolbar && <div className="gp-panel flex flex-wrap items-center gap-4 p-3">{toolbar}</div>}
+      {children}
     </div>
   );
 }
