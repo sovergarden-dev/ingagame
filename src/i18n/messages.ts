@@ -170,6 +170,21 @@ export const en = {
   "page.watchlist.title": "Watchlist",
   "page.placeholder": "Foundation shell only — the full experience lands in a later pass.",
 
+  "steam.title": "Steam Connection",
+  "steam.body": "Link your Steam handle to pull your library and match releases you already own.",
+  "steam.handle": "Steam handle or vanity URL",
+  "steam.connect": "Connect Steam",
+  "steam.connecting": "Connecting…",
+  "steam.connected": "Connected",
+  "steam.disconnect": "Disconnect",
+  "steam.resync": "Resync library",
+  "steam.games": "games",
+  "steam.owned": "In your Steam library",
+  "steam.mockNote": "Simulated connection — no Steam account is contacted yet.",
+  "steam.error.private": "That profile is private. Make game details public and try again.",
+  "steam.error.short": "Enter at least 3 characters.",
+  "steam.error.unknown": "Could not reach Steam. Try again in a moment.",
+
   "pwa.title": "Install GamePulse",
   "pwa.body": "Add it to your home screen for instant countdowns, offline shell and full-screen browsing.",
   "pwa.install": "Install app",
@@ -192,6 +207,11 @@ const vi: Partial<Record<MessageKey, string>> = {
   "radar.title": "Ra đa phát hành",
   "countdown.eyebrow": "Sắp phát hành",
   "action.wishlist": "Yêu thích",
+  "steam.title": "Kết nối Steam",
+  "steam.connect": "Kết nối Steam",
+  "steam.disconnect": "Ngắt kết nối",
+  "steam.connected": "Đã kết nối",
+  "steam.games": "trò chơi",
 };
 
 export const CATALOGUES: Record<LocaleCode, Partial<Record<MessageKey, string>>> = {
