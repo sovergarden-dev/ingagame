@@ -1,0 +1,68 @@
+import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
+
+/** Toggleable pill used by list filters across routes. */
+export function FilterChip({
+  active,
+  onClick,
+  children,
+  className,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "h-7 rounded-full border px-2.5 text-[11px] font-medium transition-colors",
+        active
+          ? "border-accent bg-accent-soft text-accent"
+          : "border-border text-muted-foreground hover:border-border-strong hover:text-foreground",
+        className,
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Single-choice segmented control (sort orders, tabs). */
+export function Segmented<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { id: T; label: string; Icon?: React.ComponentType<{ className?: string }> }[];
+  onChange: (next: T) => void;
+}) {
+  return (
+    <div role="tablist" aria-label={label} className="flex flex-wrap items-center gap-1">
+      {options.map(({ id, label: optionLabel, Icon }) => (
+        <button
+          key={id}
+          role="tab"
+          type="button"
+          aria-selected={value === id}
+          onClick={() => onChange(id)}
+          className={cn(
+            "inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors",
+            value === id
+              ? "bg-accent text-accent-foreground"
+              : "text-muted-foreground hover:bg-surface-2 hover:text-foreground",
+          )}
+        >
+          {Icon && <Icon aria-hidden className="size-3.5" />}
+          {optionLabel}
+        </button>
+      ))}
+    </div>
+  );
+}
