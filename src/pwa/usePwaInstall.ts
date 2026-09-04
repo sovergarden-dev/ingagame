@@ -37,8 +37,6 @@ export function usePwaInstall() {
         .catch(() => undefined);
     }
 
-
-
     return () => {
       window.removeEventListener("beforeinstallprompt", onPrompt);
       window.removeEventListener("appinstalled", onInstalled);
