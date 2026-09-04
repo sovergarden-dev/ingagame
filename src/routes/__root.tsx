@@ -105,7 +105,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", type: "image/png", href: "/favicon.png" },
       { rel: "apple-touch-icon", href: "/pwa-icon-192.png" },
       { rel: "manifest", href: "/manifest.webmanifest" },
-
     ],
   }),
   shellComponent: RootShell,
@@ -143,12 +142,12 @@ function RootComponent() {
         <I18nProvider>
           <LibraryProvider>
             <SteamProvider>
-            <AppShell>
-              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-              <Outlet />
-            </AppShell>
-            <InstallPrompt />
-            <Toaster />
+              <AppShell>
+                {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                <Outlet />
+              </AppShell>
+              <InstallPrompt />
+              <Toaster />
             </SteamProvider>
           </LibraryProvider>
         </I18nProvider>

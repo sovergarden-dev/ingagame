@@ -7,11 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  fetchSteamLibrary,
-  SteamConnectError,
-  type SteamLibrarySnapshot,
-} from "./mock";
+import { fetchSteamLibrary, SteamConnectError, type SteamLibrarySnapshot } from "./mock";
 
 export type SteamStatus = "disconnected" | "connecting" | "connected" | "error";
 
