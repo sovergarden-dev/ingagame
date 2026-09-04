@@ -6,13 +6,15 @@ import { FilterChip, Segmented } from "@/components/gp/FilterChip";
 import { GameCard } from "@/components/gp/GameCard";
 import { EmptyState } from "@/components/gp/EmptyState";
 import { GAMES } from "@/domain/mock-data";
-import { PLATFORM_FAMILIES, familyOf } from "@/domain/platforms";
+import { PLATFORMS } from "@/domain/platforms";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { MessageKey } from "@/i18n/messages";
 import type { PlatformFamily } from "@/domain/types";
 import { Input } from "@/components/ui/input";
 
 type SortId = "hype" | "critic" | "title" | "soonest";
+
+const FAMILIES: PlatformFamily[] = ["pc", "playstation", "xbox", "nintendo", "mobile", "vr"];
 
 export const Route = createFileRoute("/discover")({
   head: () => ({
@@ -48,7 +50,7 @@ function DiscoverPage() {
       if (q && !`${game.title} ${game.developer} ${game.publisher}`.toLowerCase().includes(q))
         return false;
       if (genres.length && !game.genres.some((g) => genres.includes(g))) return false;
-      if (families.length && !game.platforms.some((p) => families.includes(familyOf(p))))
+      if (families.length && !game.platforms.some((p) => families.includes(PLATFORMS[p].family)))
         return false;
       return true;
     });
@@ -96,7 +98,7 @@ function DiscoverPage() {
 
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="gp-eyebrow mr-1">{t("filter.platforms")}</span>
-            {PLATFORM_FAMILIES.map((family) => (
+            {FAMILIES.map((family) => (
               <FilterChip
                 key={family}
                 active={families.includes(family)}
