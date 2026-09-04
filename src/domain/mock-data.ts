@@ -530,7 +530,28 @@ export const ARTICLES: Article[] = [
     source: "Handheld Weekly",
     publishedAt: "2026-08-30T09:45:00Z",
   },
+  {
+    id: "art-5",
+    title: "Ashen Vale Reborn confirms a same-day day-one patch and 60fps console modes",
+    source: "Vantage Newsroom",
+    publishedAt: "2026-08-29T13:20:00Z",
+    gameId: "game-3",
+  },
+  {
+    id: "art-6",
+    title: "Publisher opens cross-save beta ahead of the autumn release wave",
+    source: "Release Wire",
+    publishedAt: "2026-08-28T07:05:00Z",
+    gameId: "game-2",
+  },
+  {
+    id: "art-7",
+    title: "Storefront sale trackers flag the deepest discounts of the quarter",
+    source: "Station Log",
+    publishedAt: "2026-08-27T18:40:00Z",
+  },
 ];
+
 
 export const VIDEOS: Video[] = [
   {
