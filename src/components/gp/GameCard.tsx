@@ -8,12 +8,27 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 /** Standard poster card with metadata; used across discovery shelves. */
-export function GameCard({ game, className }: { game: Game; className?: string }) {
+export function GameCard({
+  game,
+  fluid = false,
+  className,
+}: {
+  game: Game;
+  /** Fill the parent grid cell instead of using the fixed rail width. */
+  fluid?: boolean;
+  className?: string;
+}) {
   const { locale } = useI18n();
   const next = game.releaseEvents[0];
 
   return (
-    <article className={cn("group/card relative w-[168px] shrink-0 sm:w-[190px]", className)}>
+    <article
+      className={cn(
+        "group/card relative",
+        fluid ? "w-full" : "w-[168px] shrink-0 sm:w-[190px]",
+        className,
+      )}
+    >
       <Link to="/game/$slug" params={{ slug: game.slug }} className="block rounded-xl">
         <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-border bg-surface-2 transition-[transform,border-color] duration-200 group-hover/card:-translate-y-1 group-hover/card:border-accent/60">
           <img
