@@ -74,7 +74,16 @@ export function CountdownHero({
             "linear-gradient(100deg, var(--background) 6%, oklch(from var(--background) l c h / 0.86) 42%, oklch(from var(--background) l c h / 0.15) 82%)",
         }}
       />
-      <div className="relative grid gap-8 p-6 sm:p-9 lg:grid-cols-[minmax(0,1fr)_auto] lg:p-12">
+      {/* Vertical scrim keeps text legible on narrow screens where the art sits behind the copy. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 lg:hidden"
+        style={{
+          background:
+            "linear-gradient(to top, var(--background) 18%, oklch(from var(--background) l c h / 0.82) 62%, oklch(from var(--background) l c h / 0.45) 100%)",
+        }}
+      />
+      <div className="relative p-6 sm:p-9 lg:p-12">
         <div className="max-w-xl">
           <div className="flex flex-wrap items-center gap-2">
             <p className="gp-eyebrow">{t("countdown.eyebrow")}</p>
@@ -118,33 +127,32 @@ export function CountdownHero({
               <PlatformBadge key={p} platform={p} size="md" showLabel />
             ))}
           </div>
-        </div>
 
-        <div className="flex flex-row flex-wrap gap-2 lg:w-56 lg:flex-col lg:self-center">
-          <WishlistButton gameId={game.id} variant="full" className="flex-1 lg:w-full" />
-          <Button
-            variant="glass"
-            size="lg"
-            onClick={() => toggleFollow(game.id)}
-            aria-pressed={following}
-            className="flex-1 lg:w-full"
-          >
-            <Star className={cn(following && "fill-current")} />
-            {following ? t("action.following") : t("action.follow")}
-          </Button>
-          <Button variant="glass" size="lg" className="flex-1 lg:w-full">
-            <PlayCircle />
-            {t("action.trailer")}
-          </Button>
-          <Button variant="glass" size="lg" className="flex-1 lg:w-full">
-            <CalendarPlus />
-            {t("action.addToCalendar")}
-          </Button>
-          <Button asChild variant="quiet" size="lg" className="flex-1 lg:w-full">
-            <Link to="/game/$slug" params={{ slug: game.slug }}>
-              {t("action.viewDetails")}
-            </Link>
-          </Button>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <WishlistButton gameId={game.id} variant="full" />
+            <Button
+              variant="glass"
+              size="lg"
+              onClick={() => toggleFollow(game.id)}
+              aria-pressed={following}
+            >
+              <Star className={cn(following && "fill-current")} />
+              {following ? t("action.following") : t("action.follow")}
+            </Button>
+            <Button variant="glass" size="lg">
+              <PlayCircle />
+              {t("action.trailer")}
+            </Button>
+            <Button variant="glass" size="lg" className="hidden sm:inline-flex">
+              <CalendarPlus />
+              {t("action.addToCalendar")}
+            </Button>
+            <Button asChild variant="quiet" size="lg">
+              <Link to="/game/$slug" params={{ slug: game.slug }}>
+                {t("action.viewDetails")}
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
     </section>

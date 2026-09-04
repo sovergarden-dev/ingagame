@@ -161,7 +161,7 @@ function Home() {
             viewAllTo="/deals"
             viewAllLabel={t("action.viewAll")}
           />
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="mt-3 space-y-3">
             <DealCard deal={DEALS[0]!} locale={locale} featured />
             <div className="space-y-1">
               {DEALS.slice(1).map((deal) => (
