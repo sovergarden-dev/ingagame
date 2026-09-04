@@ -25,7 +25,7 @@ export function GameCard({
     <article
       className={cn(
         "group/card relative",
-        fluid ? "w-full" : "w-[168px] shrink-0 sm:w-[190px]",
+        fluid ? "w-full min-w-0" : "w-[168px] shrink-0 sm:w-[190px]",
         className,
       )}
     >
