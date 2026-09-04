@@ -29,9 +29,15 @@ export function usePwaInstall() {
     window.addEventListener("beforeinstallprompt", onPrompt);
     window.addEventListener("appinstalled", onInstalled);
 
+    // Cleanup: remove any previously registered app service worker (stale caches).
     if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      void navigator.serviceWorker
+        .getRegistrations()
+        .then((regs) => regs.forEach((r) => void r.unregister()))
+        .catch(() => undefined);
     }
+
+
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onPrompt);
