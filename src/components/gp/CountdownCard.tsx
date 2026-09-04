@@ -127,33 +127,32 @@ export function CountdownHero({
               <PlatformBadge key={p} platform={p} size="md" showLabel />
             ))}
           </div>
-        </div>
 
-        <div className="flex flex-row flex-wrap gap-2 lg:w-56 lg:flex-col lg:self-center">
-          <WishlistButton gameId={game.id} variant="full" className="flex-1 lg:w-full" />
-          <Button
-            variant="glass"
-            size="lg"
-            onClick={() => toggleFollow(game.id)}
-            aria-pressed={following}
-            className="flex-1 lg:w-full"
-          >
-            <Star className={cn(following && "fill-current")} />
-            {following ? t("action.following") : t("action.follow")}
-          </Button>
-          <Button variant="glass" size="lg" className="flex-1 lg:w-full">
-            <PlayCircle />
-            {t("action.trailer")}
-          </Button>
-          <Button variant="glass" size="lg" className="flex-1 lg:w-full">
-            <CalendarPlus />
-            {t("action.addToCalendar")}
-          </Button>
-          <Button asChild variant="quiet" size="lg" className="flex-1 lg:w-full">
-            <Link to="/game/$slug" params={{ slug: game.slug }}>
-              {t("action.viewDetails")}
-            </Link>
-          </Button>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <WishlistButton gameId={game.id} variant="full" />
+            <Button
+              variant="glass"
+              size="lg"
+              onClick={() => toggleFollow(game.id)}
+              aria-pressed={following}
+            >
+              <Star className={cn(following && "fill-current")} />
+              {following ? t("action.following") : t("action.follow")}
+            </Button>
+            <Button variant="glass" size="lg">
+              <PlayCircle />
+              {t("action.trailer")}
+            </Button>
+            <Button variant="glass" size="lg" className="hidden sm:inline-flex">
+              <CalendarPlus />
+              {t("action.addToCalendar")}
+            </Button>
+            <Button asChild variant="quiet" size="lg">
+              <Link to="/game/$slug" params={{ slug: game.slug }}>
+                {t("action.viewDetails")}
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
     </section>
