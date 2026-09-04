@@ -425,7 +425,47 @@ export const DEALS: Deal[] = [
     discountPercent: 50,
     currency: "USD",
   },
+  {
+    id: "deal-5",
+    gameId: "game-2",
+    store: "Steam",
+    priceCurrent: 34.99,
+    priceBase: 59.99,
+    discountPercent: 42,
+    currency: "USD",
+    endsAt: "2026-09-12T00:00:00Z",
+  },
+  {
+    id: "deal-6",
+    gameId: "game-9",
+    store: "Xbox Store",
+    priceCurrent: 11.24,
+    priceBase: 44.99,
+    discountPercent: 75,
+    currency: "USD",
+    endsAt: "2026-09-07T00:00:00Z",
+  },
+  {
+    id: "deal-7",
+    gameId: "game-11",
+    store: "GOG",
+    priceCurrent: 6.79,
+    priceBase: 16.99,
+    discountPercent: 60,
+    currency: "USD",
+  },
+  {
+    id: "deal-8",
+    gameId: "game-3",
+    store: "Humble Store",
+    priceCurrent: 22.49,
+    priceBase: 29.99,
+    discountPercent: 25,
+    currency: "USD",
+    endsAt: "2026-09-20T00:00:00Z",
+  },
 ];
+
 
 export const GIVEAWAYS: Giveaway[] = [
   {
