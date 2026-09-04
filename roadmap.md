@@ -7,8 +7,8 @@
 - App shell: sidebar, mobile nav, command center (Ctrl+K)
 - Release views: Rail, Timeline, Agenda, Month, Countdown, Recently Released
 - Routes: /, /releases, /game/$slug, /deals, /free, /news, /discover, /watchlist, /settings
+- PWA: manifest, icons, install prompt (manifest-only, no offline worker)
 
 ## Next passes
-- Real data providers + Lovable Cloud backend
-- PWA manifest + install flow
+- Real data providers + Lovable Cloud backend (accounts, synced watchlist, notifications)
 - Steam account connection
