@@ -1,11 +1,17 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Star } from "lucide-react";
-import { PlaceholderPage } from "@/components/gp/PlaceholderPage";
+import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Bell, Star } from "lucide-react";
+import { PageShell } from "@/components/gp/PageShell";
+import { Segmented } from "@/components/gp/FilterChip";
 import { CountdownChip } from "@/components/gp/CountdownCard";
+import { GameCardCompact } from "@/components/gp/GameCard";
+import { SectionHeader } from "@/components/gp/SectionHeader";
 import { EmptyState } from "@/components/gp/EmptyState";
-import { UPCOMING_RELEASES } from "@/domain/mock-data";
+import { RECENTLY_RELEASED, UPCOMING_RELEASES } from "@/domain/mock-data";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useLibrary } from "@/library/LibraryProvider";
+
+type TabId = "all" | "wishlist" | "following";
 
 export const Route = createFileRoute("/watchlist")({
   head: () => ({
@@ -29,25 +35,76 @@ export const Route = createFileRoute("/watchlist")({
 function WatchlistPage() {
   const { t } = useI18n();
   const { wishlist, following } = useLibrary();
-  const tracked = UPCOMING_RELEASES.filter(
-    ({ game }) => wishlist.includes(game.id) || following.includes(game.id),
-  );
+  const [tab, setTab] = useState<TabId>("all");
+
+  const ids =
+    tab === "wishlist" ? wishlist : tab === "following" ? following : [...wishlist, ...following];
+  const idSet = new Set(ids);
+
+  const tracked = UPCOMING_RELEASES.filter(({ game }) => idSet.has(game.id));
+  const released = RECENTLY_RELEASED.filter(({ game }) => idSet.has(game.id));
 
   return (
-    <PlaceholderPage title={t("page.watchlist.title")} description={t("page.placeholder")}>
-      {tracked.length ? (
-        <div className="gp-panel grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">
-          {tracked.map(({ game, event }) => (
-            <CountdownChip key={event.id} game={game} event={event} />
-          ))}
-        </div>
-      ) : (
+    <PageShell
+      title={t("page.watchlist.title")}
+      description={t("page.watchlist.subtitle")}
+      toolbar={
+        <>
+          <Segmented<TabId>
+            label={t("page.watchlist.title")}
+            value={tab}
+            onChange={setTab}
+            options={[
+              { id: "all", label: t("watchlist.tab.all"), Icon: Bell },
+              { id: "wishlist", label: t("watchlist.tab.wishlist"), Icon: Star },
+              { id: "following", label: t("watchlist.tab.following") },
+            ]}
+          />
+          <span className="ml-auto text-xs text-muted-foreground">
+            {t("discover.results", { count: tracked.length + released.length })}
+          </span>
+        </>
+      }
+    >
+      {tracked.length === 0 && released.length === 0 ? (
         <EmptyState
-          title={t("empty.title")}
-          body={t("empty.body")}
+          title={t("watchlist.empty.title")}
+          body={t("watchlist.empty.body")}
           icon={<Star aria-hidden className="size-5" />}
+          action={
+            <Link
+              to="/releases"
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:opacity-90"
+            >
+              {t("watchlist.browse")}
+            </Link>
+          }
         />
+      ) : (
+        <div className="space-y-8">
+          {tracked.length > 0 && (
+            <section className="space-y-3">
+              <SectionHeader title={t("watchlist.tab.all")} />
+              <div className="gp-panel grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">
+                {tracked.map(({ game, event }) => (
+                  <CountdownChip key={event.id} game={game} event={event} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {released.length > 0 && (
+            <section className="space-y-3">
+              <SectionHeader title={t("watchlist.released")} />
+              <div className="gp-panel space-y-1 p-4">
+                {released.map(({ game }) => (
+                  <GameCardCompact key={game.id} game={game} />
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
       )}
-    </PlaceholderPage>
+    </PageShell>
   );
 }
