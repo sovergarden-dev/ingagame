@@ -74,7 +74,16 @@ export function CountdownHero({
             "linear-gradient(100deg, var(--background) 6%, oklch(from var(--background) l c h / 0.86) 42%, oklch(from var(--background) l c h / 0.15) 82%)",
         }}
       />
-      <div className="relative grid gap-8 p-6 sm:p-9 lg:grid-cols-[minmax(0,1fr)_auto] lg:p-12">
+      {/* Vertical scrim keeps text legible on narrow screens where the art sits behind the copy. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 lg:hidden"
+        style={{
+          background:
+            "linear-gradient(to top, var(--background) 18%, oklch(from var(--background) l c h / 0.82) 62%, oklch(from var(--background) l c h / 0.45) 100%)",
+        }}
+      />
+      <div className="relative p-6 sm:p-9 lg:p-12">
         <div className="max-w-xl">
           <div className="flex flex-wrap items-center gap-2">
             <p className="gp-eyebrow">{t("countdown.eyebrow")}</p>
