@@ -20,9 +20,11 @@ export function ReleaseCard({
   const { locale } = useI18n();
   const exactTime =
     event.precision === "exact"
-      ? new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(
-          new Date(event.date),
-        )
+      ? new Intl.DateTimeFormat(locale, {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "UTC",
+        }).format(new Date(event.date))
       : null;
 
   return (

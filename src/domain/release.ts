@@ -46,7 +46,6 @@ export function shortDateLabel(date: string, locale = "en-US") {
     .toUpperCase();
 }
 
-
 export function dayKey(date: string) {
   return date.slice(0, 10);
 }
