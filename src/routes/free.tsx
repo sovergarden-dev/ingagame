@@ -48,14 +48,14 @@ function GiveawayCard({ giveaway }: { giveaway: Giveaway }) {
       <Link to="/game/$slug" params={{ slug: game.slug }} className="block">
         <div className="relative h-36 overflow-hidden">
           <img
-            src={game.backdropUrl ?? game.coverUrl}
+            src={game.coverUrl}
             alt=""
             loading="lazy"
             className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/45 to-transparent" />
           <span className="absolute left-3 top-3 rounded-md bg-success px-2 py-0.5 text-[11px] font-bold text-background">
-            {t("free.claimable")}
+            FREE
           </span>
         </div>
       </Link>

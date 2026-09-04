@@ -67,7 +67,8 @@ function DealsPage() {
     () => sortDeals(stores.length ? DEALS.filter((d) => stores.includes(d.store)) : DEALS, sort),
     [sort, stores],
   );
-  const [featured, ...rest] = filtered;
+  const featured = filtered.slice(0, 3);
+  const rest = filtered.slice(3);
 
   return (
     <PageShell
@@ -108,16 +109,20 @@ function DealsPage() {
         </>
       }
     >
-      {featured ? (
+      {featured.length ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           <section className="space-y-3">
             <SectionHeader title={t("deals.featured")} />
-            <div className="space-y-2">
-              <DealCard deal={featured} locale={locale} featured />
-              <div className="flex items-center justify-between px-1">
-                <span className="text-xs text-muted-foreground">{featured.store}</span>
-                <EndsIn {...(featured.endsAt ? { endsAt: featured.endsAt } : {})} />
-              </div>
+            <div className="space-y-4">
+              {featured.map((deal) => (
+                <div key={deal.id} className="space-y-2">
+                  <DealCard deal={deal} locale={locale} featured />
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-xs text-muted-foreground">{deal.store}</span>
+                    <EndsIn {...(deal.endsAt ? { endsAt: deal.endsAt } : {})} />
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
 
