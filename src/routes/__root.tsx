@@ -14,6 +14,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import { PreferencesProvider } from "@/preferences/PreferencesProvider";
 import { LibraryProvider } from "@/library/LibraryProvider";
+import { AuthProvider } from "@/auth/AuthProvider";
+
 import { SteamProvider } from "@/integrations/steam/SteamProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "@/components/ui/sonner";
