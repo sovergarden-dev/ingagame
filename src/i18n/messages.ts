@@ -235,7 +235,26 @@ export const en = {
   "pwa.install": "Install app",
   "pwa.later": "Not now",
   "pwa.installed": "GamePulse is installed on this device.",
+
+  "auth.title": "Sign in to GamePulse",
+  "auth.subtitle": "Sync your watchlist across every device.",
+  "auth.email": "Email",
+  "auth.password": "Password",
+  "auth.signIn": "Sign in",
+  "auth.signUp": "Create account",
+  "auth.google": "Continue with Google",
+  "auth.toggleToSignUp": "New here? Create an account",
+  "auth.toggleToSignIn": "Already have an account? Sign in",
+  "auth.checkEmail": "Check your inbox to confirm your address.",
+  "auth.signOut": "Sign out",
+  "auth.account": "Account",
+  "auth.signedInAs": "Signed in as {email}",
+  "auth.localOnly": "Your watchlist is saved on this device only. Sign in to sync it.",
+  "auth.syncing": "Syncing watchlist…",
+  "auth.synced": "Watchlist synced to your account.",
+  "auth.working": "Please wait…",
 } as const;
+
 
 export type MessageKey = keyof typeof en;
 
