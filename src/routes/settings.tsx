@@ -24,6 +24,8 @@ import {
   type TitleLanguage,
 } from "@/preferences/PreferencesProvider";
 import { SteamPanel } from "@/components/gp/SteamPanel";
+import { AccountPanel } from "@/components/gp/AccountPanel";
+
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings")({
