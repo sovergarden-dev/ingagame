@@ -1,5 +1,8 @@
 import { useState, type ReactNode } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/auth/AuthProvider";
+
 import {
   Bell,
   ChevronLeft,
@@ -72,6 +75,17 @@ function NavList({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: (
 
 function SidebarFooter({ collapsed }: { collapsed: boolean }) {
   const { t } = useI18n();
+  const { user, signOut } = useAuth();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await signOut();
+    await navigate({ to: "/", replace: true });
+  };
+
   return (
     <div className="space-y-1 border-t border-sidebar-border pt-3">
       <Link
@@ -84,24 +98,55 @@ function SidebarFooter({ collapsed }: { collapsed: boolean }) {
         <Settings aria-hidden className="size-4.5" />
         {!collapsed && t("nav.settings")}
       </Link>
-      <div
-        className={cn(
-          "flex items-center gap-3 rounded-lg px-3 py-2",
-          collapsed && "justify-center px-0",
-        )}
-      >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-surface-2 text-muted-foreground">
-          <User aria-hidden className="size-4" />
-        </span>
-        {!collapsed && (
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-medium text-foreground">
-              {t("nav.profile")}
-            </span>
-            <span className="block truncate text-xs text-muted-foreground">Signed out</span>
+
+      {user ? (
+        <div
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2",
+            collapsed && "justify-center px-0",
+          )}
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-accent/40 bg-accent-soft text-accent">
+            <User aria-hidden className="size-4" />
           </span>
-        )}
-      </div>
+          {!collapsed && (
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-foreground">
+                {user.email ?? t("nav.profile")}
+              </span>
+              <button
+                type="button"
+                onClick={() => void handleSignOut()}
+                className="block truncate text-xs text-muted-foreground underline-offset-4 hover:underline"
+              >
+                {t("auth.signOut")}
+              </button>
+            </span>
+          )}
+        </div>
+      ) : (
+        <Link
+          to="/auth"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-sidebar-accent",
+            collapsed && "justify-center px-0",
+          )}
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-surface-2 text-muted-foreground">
+            <User aria-hidden className="size-4" />
+          </span>
+          {!collapsed && (
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium text-foreground">
+                {t("auth.signIn")}
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {t("auth.subtitle")}
+              </span>
+            </span>
+          )}
+        </Link>
+      )}
     </div>
   );
 }
