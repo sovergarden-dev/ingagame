@@ -307,7 +307,25 @@ const vi: Partial<Record<MessageKey, string>> = {
   "watchlist.browse": "Xem lịch phát hành",
   "common.reset": "Xoá bộ lọc",
   "common.noResults": "Không có kết quả phù hợp.",
+  "auth.title": "Đăng nhập GamePulse",
+  "auth.subtitle": "Đồng bộ danh sách theo dõi trên mọi thiết bị.",
+  "auth.email": "Email",
+  "auth.password": "Mật khẩu",
+  "auth.signIn": "Đăng nhập",
+  "auth.signUp": "Tạo tài khoản",
+  "auth.google": "Tiếp tục với Google",
+  "auth.toggleToSignUp": "Chưa có tài khoản? Đăng ký",
+  "auth.toggleToSignIn": "Đã có tài khoản? Đăng nhập",
+  "auth.checkEmail": "Kiểm tra hộp thư để xác nhận email.",
+  "auth.signOut": "Đăng xuất",
+  "auth.account": "Tài khoản",
+  "auth.signedInAs": "Đang đăng nhập: {email}",
+  "auth.localOnly": "Danh sách theo dõi đang lưu trên máy này. Đăng nhập để đồng bộ.",
+  "auth.syncing": "Đang đồng bộ…",
+  "auth.synced": "Đã đồng bộ với tài khoản của bạn.",
+  "auth.working": "Vui lòng đợi…",
 };
+
 
 export const CATALOGUES: Record<LocaleCode, Partial<Record<MessageKey, string>>> = {
   en,
