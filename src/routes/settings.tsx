@@ -266,9 +266,14 @@ function SettingsPage() {
           </Row>
         </Panel>
 
+        <Panel title={t("auth.account")}>
+          <AccountPanel />
+        </Panel>
+
         <Panel title={t("steam.title")}>
           <SteamPanel />
         </Panel>
+
 
         <Panel title={t("topbar.platforms")}>
           <p className="text-sm text-muted-foreground">{t("page.placeholder")}</p>
