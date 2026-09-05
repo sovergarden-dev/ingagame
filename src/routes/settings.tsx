@@ -24,6 +24,8 @@ import {
   type TitleLanguage,
 } from "@/preferences/PreferencesProvider";
 import { SteamPanel } from "@/components/gp/SteamPanel";
+import { AccountPanel } from "@/components/gp/AccountPanel";
+
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings")({
@@ -266,9 +268,14 @@ function SettingsPage() {
           </Row>
         </Panel>
 
+        <Panel title={t("auth.account")}>
+          <AccountPanel />
+        </Panel>
+
         <Panel title={t("steam.title")}>
           <SteamPanel />
         </Panel>
+
 
         <Panel title={t("topbar.platforms")}>
           <p className="text-sm text-muted-foreground">{t("page.placeholder")}</p>
