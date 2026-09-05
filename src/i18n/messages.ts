@@ -255,7 +255,6 @@ export const en = {
   "auth.working": "Please wait…",
 } as const;
 
-
 export type MessageKey = keyof typeof en;
 
 const vi: Partial<Record<MessageKey, string>> = {
@@ -325,7 +324,6 @@ const vi: Partial<Record<MessageKey, string>> = {
   "auth.synced": "Đã đồng bộ với tài khoản của bạn.",
   "auth.working": "Vui lòng đợi…",
 };
-
 
 export const CATALOGUES: Record<LocaleCode, Partial<Record<MessageKey, string>>> = {
   en,

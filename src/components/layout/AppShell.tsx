@@ -151,7 +151,6 @@ function SidebarFooter({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-
 function LanguageMenu() {
   const { t, locale, setLocale } = useI18n();
   return (
