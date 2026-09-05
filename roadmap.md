@@ -11,6 +11,11 @@
 - Steam connection (mock provider): connect/resync/disconnect + owned library in Settings
 - Full surfaces for /deals (sort + store filters), /free (expiry countdowns), /news (source filters + lead story), /discover (search, genre/platform filters, sorting), /watchlist (wishlist/following tabs + released section)
 
+- Lovable Cloud backend: profiles + watchlist_items tables with owner-only access
+- Accounts: email/password + Google sign-in (/auth), account panel in Settings
+- Watchlist syncs to the account after sign-in (local-first when signed out)
+
 ## Next passes
-- Real data providers + Lovable Cloud backend (accounts, synced watchlist, notifications)
-- Swap mock Steam provider for a real server-backed adapter once Cloud is available
+- Real data providers (releases, deals, news) + notifications
+- Swap mock Steam provider for a real server-backed adapter
+
