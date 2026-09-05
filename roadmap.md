@@ -12,8 +12,11 @@
 - Full surfaces for /deals (sort + store filters), /free (expiry countdowns), /news (source filters + lead story), /discover (search, genre/platform filters, sorting), /watchlist (wishlist/following tabs + released section)
 
 - Lovable Cloud backend: profiles + watchlist_items tables with owner-only access
-- Accounts: email/password + Google sign-in (/auth), account panel in Settings
+- Accounts: email/password + Google sign-in (/auth), account panel in Settings,
+  session-aware sidebar with clean sign-out
 - Watchlist syncs to the account after sign-in (local-first when signed out)
+- Security linter: clean
+
 
 ## Next passes
 - Real data providers (releases, deals, news) + notifications
