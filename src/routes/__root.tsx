@@ -140,18 +140,21 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <PreferencesProvider>
         <I18nProvider>
-          <LibraryProvider>
-            <SteamProvider>
-              <AppShell>
-                {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-                <Outlet />
-              </AppShell>
-              <InstallPrompt />
-              <Toaster />
-            </SteamProvider>
-          </LibraryProvider>
+          <AuthProvider>
+            <LibraryProvider>
+              <SteamProvider>
+                <AppShell>
+                  {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                  <Outlet />
+                </AppShell>
+                <InstallPrompt />
+                <Toaster />
+              </SteamProvider>
+            </LibraryProvider>
+          </AuthProvider>
         </I18nProvider>
       </PreferencesProvider>
+
     </QueryClientProvider>
   );
 }
