@@ -125,13 +125,60 @@
 
 /* ---- Theme variants ---- */
 [data-theme="oled"] {
+  /* Pure black base so OLED pixels switch off; surfaces stay near-black but
+     distinct, with brighter text and stronger hairlines for contrast. */
   --background: oklch(0 0 0);
-  --surface: oklch(0.11 0.008 285);
-  --surface-2: oklch(0.15 0.01 285);
-  --card: oklch(0.1 0.008 285);
-  --popover: oklch(0.1 0.008 285);
+  --foreground: oklch(0.99 0.002 285);
+  --surface: oklch(0.13 0.008 285);
+  --surface-2: oklch(0.18 0.01 285);
+  --card: oklch(0.12 0.008 285);
+  --card-foreground: oklch(0.99 0.002 285);
+  --popover: oklch(0.12 0.008 285);
+  --popover-foreground: oklch(0.99 0.002 285);
+  --secondary: oklch(0.2 0.01 285);
+  --secondary-foreground: oklch(0.99 0.002 285);
   --sidebar: oklch(0 0 0);
-  --muted: oklch(0.16 0.008 285);
+  --sidebar-foreground: oklch(0.96 0.003 285);
+  --muted: oklch(0.18 0.008 285);
+  --muted-foreground: oklch(0.76 0.012 285);
+  --border: oklch(1 0 0 / 12%);
+  --border-strong: oklch(1 0 0 / 24%);
+  --input: oklch(1 0 0 / 18%);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  /* On true black, heavy shadows are invisible — trade them for crisper edges. */
+  --shadow-panel: 0 0 0 1px oklch(1 0 0 / 4%);
+  /* Weaker scrims keep cover/backdrop art sharp instead of washed out. */
+  --gradient-veil: linear-gradient(
+    to top,
+    var(--background) 2%,
+    oklch(from var(--background) l c h / 0.55) 34%,
+    transparent 88%
+  );
+}
+
+/* OLED: keep release art crisp — lighter scrims, no backdrop blur over images. */
+[data-theme="oled"] .gp-cover-scrim {
+  background: linear-gradient(to top, oklch(0 0 0 / 0.55), transparent 55%);
+}
+[data-theme="oled"] .gp-hero-scrim {
+  background: linear-gradient(
+    100deg,
+    var(--background) 4%,
+    oklch(0 0 0 / 0.78) 38%,
+    oklch(0 0 0 / 0.05) 78%
+  ) !important;
+}
+[data-theme="oled"] .gp-hero-scrim-mobile {
+  background: linear-gradient(
+    to top,
+    var(--background) 14%,
+    oklch(0 0 0 / 0.7) 58%,
+    oklch(0 0 0 / 0.3) 100%
+  ) !important;
+}
+[data-theme="oled"] .gp-glass {
+  backdrop-filter: none;
+  background-color: oklch(from var(--surface) l c h / 0.9);
 }
 
 [data-theme="light"] {
