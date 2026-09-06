@@ -56,7 +56,7 @@ function Home() {
   const myNext = UPCOMING_RELEASES.filter((e) => wishlist.includes(e.game.id)).slice(0, 4);
 
   return (
-    <div className="space-y-[var(--density-section,2.25rem)]">
+    <div className="w-full min-w-0 space-y-[var(--density-section,2.25rem)] overflow-x-clip">
       <div className="flex items-center justify-between gap-3">
         <p className="gp-eyebrow">{t("app.tagline")}</p>
         <FreshnessStatus status={{ state: "changed", minutesAgo: 43, changeCount: 3 }} />
@@ -181,7 +181,7 @@ function Home() {
           viewAllLabel={t("action.viewAll")}
           actions={<TrendingUp aria-hidden className="size-4 text-accent" />}
         />
-        <div className="gp-scroll-x mt-3 flex gap-3 pb-2">
+        <div className="gp-scroll-x -mx-1 mt-3 flex gap-3 px-1 pb-2">
           {TRENDING.map((game) => (
             <GameCard key={game.id} game={game} />
           ))}
@@ -195,7 +195,7 @@ function Home() {
           viewAllTo="/releases"
           viewAllLabel={t("action.viewAll")}
         />
-        <div className="gp-scroll-x mt-3 flex gap-3 pb-2">
+        <div className="gp-scroll-x -mx-1 mt-3 flex gap-3 px-1 pb-2">
           {RECENTLY_RELEASED.map(({ game }) => (
             <GameCard key={game.id} game={game} />
           ))}
