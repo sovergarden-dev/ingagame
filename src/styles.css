@@ -292,6 +292,16 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* OLED: thinner, crisper glyphs on true black; light text blooms less. */
+  [data-theme="oled"] body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  [data-theme="oled"] img {
+    image-rendering: -webkit-optimize-contrast;
+  }
+
   h1,
   h2,
   h3,
