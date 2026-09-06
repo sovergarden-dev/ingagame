@@ -6,12 +6,28 @@ export function parseDealEndMs(endsAt: string | undefined): number | null {
 }
 
 /**
- * Shared expiry clock for toasts and deal cards.
+ * Shared expiry clock for toasts, deal cards, and free-game lists.
  * Unknown clock (`now === null`) and missing/invalid `endsAt` are not expired.
  */
-export function isDealExpired(endsAt: string | undefined, now: number | null): boolean {
+export function hasEnded(endsAt: string | undefined, now: number | null): boolean {
   if (now === null) return false;
   const ms = parseDealEndMs(endsAt);
   if (ms === null) return false;
   return ms <= now;
+}
+
+export const isDealExpired = hasEnded;
+
+export const ENDING_SOON_MS = 72 * 3_600_000;
+
+/** Still active and within the ending-soon window. Expired items never qualify. */
+export function isEndingSoon(
+  endsAt: string | undefined,
+  now: number | null,
+  windowMs = ENDING_SOON_MS,
+): boolean {
+  if (now === null || hasEnded(endsAt, now)) return false;
+  const ms = parseDealEndMs(endsAt);
+  if (ms === null) return false;
+  return ms - now < windowMs;
 }

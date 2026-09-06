@@ -378,8 +378,9 @@
   }
 }
 
-/* Lovable hosting injects an "Edit with Lovable" badge; hide scaffold leftover. */
-#lovable-badge {
+/* Lovable hosting injects an "Edit with Lovable" badge; hide scaffold leftover so it cannot cover mobile nav. */
+#lovable-badge,
+[id^="lovable-badge"] {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
@@ -387,4 +388,6 @@
   height: 0 !important;
   overflow: hidden !important;
   opacity: 0 !important;
+  bottom: auto !important;
+  z-index: -1 !important;
 }

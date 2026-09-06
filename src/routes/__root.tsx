@@ -141,11 +141,15 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
-    const removeBadge = () => document.getElementById("lovable-badge")?.remove();
+    const removeBadge = () => {
+      document
+        .querySelectorAll("#lovable-badge, [id^='lovable-badge']")
+        .forEach((el) => el.remove());
+    };
     removeBadge();
     const observer = new MutationObserver(removeBadge);
-    observer.observe(document.body, { childList: true });
-    const timeout = window.setTimeout(removeBadge, 2000);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    const timeout = window.setTimeout(removeBadge, 4000);
     return () => {
       observer.disconnect();
       window.clearTimeout(timeout);

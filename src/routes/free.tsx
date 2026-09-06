@@ -6,13 +6,13 @@ import { EmptyState } from "@/components/gp/EmptyState";
 import { PlatformBadgeList } from "@/components/gp/PlatformBadge";
 import { WishlistButton } from "@/components/gp/WishlistButton";
 import { GIVEAWAYS, getGame } from "@/domain/mock-data";
+import { hasEnded, isEndingSoon } from "@/domain/deal";
 import { countdownFrom } from "@/domain/release";
 import { useNow } from "@/hooks/use-now";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { Giveaway } from "@/domain/types";
 import { Link } from "@tanstack/react-router";
-
-const SOON_HOURS = 72;
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/free")({
   head: () => ({
@@ -41,10 +41,10 @@ function GiveawayCard({ giveaway }: { giveaway: Giveaway }) {
   if (!game) return null;
 
   const parts = now === null ? null : countdownFrom(giveaway.endsAt, now);
-  const expired = now !== null && Date.parse(giveaway.endsAt) <= now;
+  const expired = hasEnded(giveaway.endsAt, now);
 
   return (
-    <article className="gp-panel group relative overflow-hidden">
+    <article className={cn("gp-panel group relative overflow-hidden", expired && "opacity-80")}>
       <Link to="/game/$slug" params={{ slug: game.slug }} className="block">
         <div className="relative h-36 overflow-hidden">
           <img
@@ -54,8 +54,13 @@ function GiveawayCard({ giveaway }: { giveaway: Giveaway }) {
             className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
           />
           <div className="gp-cover-scrim absolute inset-0 bg-gradient-to-t from-background via-background/45 to-transparent" />
-          <span className="absolute left-3 top-3 rounded-md bg-success px-2 py-0.5 text-[11px] font-bold text-background">
-            FREE
+          <span
+            className={cn(
+              "absolute left-3 top-3 rounded-md px-2 py-0.5 text-[11px] font-bold",
+              expired ? "bg-destructive text-destructive-foreground" : "bg-success text-background",
+            )}
+          >
+            {expired ? t("free.expired") : "FREE"}
           </span>
         </div>
       </Link>
@@ -85,7 +90,7 @@ function GiveawayCard({ giveaway }: { giveaway: Giveaway }) {
               </span>
             )}
           </span>
-          {giveaway.worth !== undefined && (
+          {giveaway.worth !== undefined && !expired && (
             <span className="text-xs text-muted-foreground line-through">
               {money(giveaway.worth, giveaway.currency ?? "USD", locale)}
             </span>
@@ -100,11 +105,10 @@ function FreePage() {
   const { t } = useI18n();
   const now = useNow();
 
-  const soon = GIVEAWAYS.filter(
-    (g) => now !== null && Date.parse(g.endsAt) - now < SOON_HOURS * 3_600_000,
-  );
+  const expiredList = GIVEAWAYS.filter((g) => hasEnded(g.endsAt, now));
+  const soon = GIVEAWAYS.filter((g) => isEndingSoon(g.endsAt, now));
   const soonIds = new Set(soon.map((g) => g.id));
-  const rest = GIVEAWAYS.filter((g) => !soonIds.has(g.id));
+  const rest = GIVEAWAYS.filter((g) => !hasEnded(g.endsAt, now) && !soonIds.has(g.id));
 
   return (
     <PageShell
@@ -131,6 +135,16 @@ function FreePage() {
               <SectionHeader title={t("free.claimable")} />
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {rest.map((g) => (
+                  <GiveawayCard key={g.id} giveaway={g} />
+                ))}
+              </div>
+            </section>
+          )}
+          {expiredList.length > 0 && (
+            <section className="space-y-3">
+              <SectionHeader title={t("free.expired")} />
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {expiredList.map((g) => (
                   <GiveawayCard key={g.id} giveaway={g} />
                 ))}
               </div>

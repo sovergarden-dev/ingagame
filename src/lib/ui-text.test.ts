@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { decodeUiText } from "./ui-text.ts";
-import { isDealExpired, parseDealEndMs } from "../domain/deal.ts";
+import { hasEnded, isDealExpired, isEndingSoon, parseDealEndMs } from "../domain/deal.ts";
 
 describe("decodeUiText", () => {
   it("shows Home not Home%20", () => {
@@ -32,5 +32,21 @@ describe("isDealExpired", () => {
     assert.equal(isDealExpired(end, endMs - 1), false);
     assert.equal(isDealExpired(end, endMs), true);
     assert.equal(isDealExpired(end, endMs + 1), true);
+    assert.equal(hasEnded(end, endMs + 1), true);
+  });
+});
+
+describe("isEndingSoon", () => {
+  const end = "2026-09-06T00:00:00Z";
+  const endMs = Date.parse(end);
+
+  it("excludes expired giveaways from Ending soon", () => {
+    assert.equal(isEndingSoon(end, endMs + 1), false);
+    assert.equal(isEndingSoon(end, endMs), false);
+  });
+
+  it("includes active titles inside the window", () => {
+    assert.equal(isEndingSoon(end, endMs - 3_600_000), true);
+    assert.equal(isEndingSoon(end, endMs - 80 * 3_600_000), false);
   });
 });
