@@ -39,7 +39,7 @@ export function DealCard({
           height={900}
           className="h-32 w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
+        <div className="gp-cover-scrim absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
         <span className="absolute right-2 top-2 rounded-md bg-success px-1.5 py-0.5 text-[11px] font-bold text-background">
           -{deal.discountPercent}%
         </span>
