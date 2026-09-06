@@ -11,6 +11,7 @@
  */
 
 @theme inline {
+  --breakpoint-xs: 24rem;
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;

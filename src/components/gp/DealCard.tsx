@@ -37,7 +37,7 @@ export function DealCard({
           loading="lazy"
           width={600}
           height={900}
-          className="h-32 w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+          className="h-36 w-full object-cover sm:h-32 transition-transform duration-300 group-hover:scale-[1.04]"
         />
         <div className="gp-cover-scrim absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
         <span className="absolute right-2 top-2 rounded-md bg-success px-1.5 py-0.5 text-[11px] font-bold text-background">
@@ -63,7 +63,7 @@ export function DealCard({
       to="/game/$slug"
       params={{ slug: game.slug }}
       className={cn(
-        "group flex items-center gap-3 rounded-lg border border-transparent p-2 transition-colors hover:border-border hover:bg-surface-2/70",
+        "group flex min-h-14 items-center gap-3 rounded-lg border border-transparent p-2 transition-colors hover:border-border hover:bg-surface-2/70",
         className,
       )}
     >
@@ -73,7 +73,7 @@ export function DealCard({
         loading="lazy"
         width={600}
         height={900}
-        className="size-10 shrink-0 rounded-md border border-border object-cover"
+        className="size-11 shrink-0 rounded-md border border-border object-cover"
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground group-hover:text-accent">
@@ -84,7 +84,7 @@ export function DealCard({
       <span className="rounded-md bg-success/15 px-1.5 py-0.5 text-xs font-semibold text-success">
         -{deal.discountPercent}%
       </span>
-      <span className="w-16 text-right text-sm font-semibold text-foreground">
+      <span className="w-[68px] shrink-0 text-right text-sm font-semibold text-foreground">
         {money(deal.priceCurrent, deal.currency, locale)}
       </span>
     </Link>

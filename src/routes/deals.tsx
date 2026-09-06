@@ -34,6 +34,14 @@ function EndsIn({ endsAt }: { endsAt?: string }) {
   const { t } = useI18n();
   const now = useNow();
   if (!endsAt) return <span className="text-xs text-muted-foreground">{t("deals.noEnd")}</span>;
+  const ended = now !== null && Date.parse(endsAt) <= now;
+  if (ended)
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-destructive">
+        <Timer aria-hidden className="size-3.5" />
+        {t("deals.alert.title")}
+      </span>
+    );
   const parts = now === null ? null : countdownFrom(endsAt, now);
   return (
     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">

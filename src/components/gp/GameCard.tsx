@@ -25,7 +25,7 @@ export function GameCard({
     <article
       className={cn(
         "group/card relative",
-        fluid ? "w-full min-w-0" : "w-[168px] shrink-0 sm:w-[190px]",
+        fluid ? "w-full min-w-0" : "w-[142px] shrink-0 xs:w-[158px] sm:w-[190px]",
         className,
       )}
     >
@@ -80,7 +80,7 @@ export function GameCardCompact({
       to="/game/$slug"
       params={{ slug: game.slug }}
       className={cn(
-        "group flex items-center gap-3 rounded-lg border border-transparent p-2 transition-colors hover:border-border hover:bg-surface-2/70",
+        "group flex min-h-16 items-center gap-3 rounded-lg border border-transparent p-2 transition-colors hover:border-border hover:bg-surface-2/70",
         className,
       )}
     >

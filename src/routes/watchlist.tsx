@@ -10,6 +10,8 @@ import { EmptyState } from "@/components/gp/EmptyState";
 import { RECENTLY_RELEASED, UPCOMING_RELEASES } from "@/domain/mock-data";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useLibrary } from "@/library/LibraryProvider";
+import { useDealAlerts } from "@/deals/deal-alerts";
+import { DealCard } from "@/components/gp/DealCard";
 
 type TabId = "all" | "wishlist" | "following";
 
@@ -33,8 +35,9 @@ export const Route = createFileRoute("/watchlist")({
 });
 
 function WatchlistPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { wishlist, following } = useLibrary();
+  const expiredDeals = useDealAlerts();
   const [tab, setTab] = useState<TabId>("all");
 
   const ids =
@@ -66,7 +69,7 @@ function WatchlistPage() {
         </>
       }
     >
-      {tracked.length === 0 && released.length === 0 ? (
+      {tracked.length === 0 && released.length === 0 && expiredDeals.length === 0 ? (
         <EmptyState
           title={t("watchlist.empty.title")}
           body={t("watchlist.empty.body")}
@@ -90,6 +93,27 @@ function WatchlistPage() {
                   <CountdownChip key={event.id} game={game} event={event} />
                 ))}
               </div>
+            </section>
+          )}
+
+          {expiredDeals.length > 0 && (
+            <section className="space-y-3">
+              <SectionHeader title={t("deals.expired")} />
+              <ul className="gp-panel divide-y divide-border p-2">
+                {expiredDeals.map(({ deal, expiredAt }) => (
+                  <li key={deal.id} className="py-1">
+                    <DealCard deal={deal} locale={locale} />
+                    <p className="px-2 pb-1 text-xs text-muted-foreground">
+                      {t("deals.expiredAt", {
+                        date: new Intl.DateTimeFormat(locale, {
+                          dateStyle: "medium",
+                          timeZone: "UTC",
+                        }).format(new Date(expiredAt)),
+                      })}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 

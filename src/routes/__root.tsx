@@ -20,6 +20,7 @@ import { SteamProvider } from "@/integrations/steam/SteamProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "@/components/ui/sonner";
 import { InstallPrompt } from "@/components/gp/InstallPrompt";
+import { DealAlertsProvider } from "@/deals/deal-alerts";
 
 function NotFoundComponent() {
   return (
@@ -145,12 +146,14 @@ function RootComponent() {
           <AuthProvider>
             <LibraryProvider>
               <SteamProvider>
-                <AppShell>
-                  {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-                  <Outlet />
-                </AppShell>
-                <InstallPrompt />
-                <Toaster />
+                <DealAlertsProvider>
+                  <AppShell>
+                    {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                    <Outlet />
+                  </AppShell>
+                  <InstallPrompt />
+                  <Toaster />
+                </DealAlertsProvider>
               </SteamProvider>
             </LibraryProvider>
           </AuthProvider>
