@@ -20,6 +20,7 @@ import { SteamProvider } from "@/integrations/steam/SteamProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "@/components/ui/sonner";
 import { InstallPrompt } from "@/components/gp/InstallPrompt";
+import { DealAlertsProvider } from "@/deals/deal-alerts";
 
 function NotFoundComponent() {
   return (
