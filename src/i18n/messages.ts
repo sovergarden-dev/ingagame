@@ -5,7 +5,7 @@ import type { LocaleCode } from "./locales";
  * so translators can fill them incrementally without breaking the UI.
  */
 export const en = {
-  "app.name": "GamePulse",
+  "app.name": "Inga",
   "app.tagline": "Release Intelligence",
   "app.motto": "Know earlier. Plan smarter. Play first.",
 
@@ -234,14 +234,14 @@ export const en = {
   "steam.error.short": "Enter at least 3 characters.",
   "steam.error.unknown": "Could not reach Steam. Try again in a moment.",
 
-  "pwa.title": "Install GamePulse",
+  "pwa.title": "Install Inga",
   "pwa.body":
     "Add it to your home screen for instant countdowns, offline shell and full-screen browsing.",
   "pwa.install": "Install app",
   "pwa.later": "Not now",
-  "pwa.installed": "GamePulse is installed on this device.",
+  "pwa.installed": "Inga is installed on this device.",
 
-  "auth.title": "Sign in to GamePulse",
+  "auth.title": "Sign in to Inga",
   "auth.subtitle": "Sync your watchlist across every device.",
   "auth.email": "Email",
   "auth.password": "Password",
@@ -316,7 +316,7 @@ const vi: Partial<Record<MessageKey, string>> = {
   "watchlist.browse": "Xem lịch phát hành",
   "common.reset": "Xoá bộ lọc",
   "common.noResults": "Không có kết quả phù hợp.",
-  "auth.title": "Đăng nhập GamePulse",
+  "auth.title": "Đăng nhập Inga",
   "auth.subtitle": "Đồng bộ danh sách theo dõi trên mọi thiết bị.",
   "auth.email": "Email",
   "auth.password": "Mật khẩu",

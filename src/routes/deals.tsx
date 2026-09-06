@@ -7,6 +7,7 @@ import { DealCard } from "@/components/gp/DealCard";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { EmptyState } from "@/components/gp/EmptyState";
 import { DEALS } from "@/domain/mock-data";
+import { isDealExpired } from "@/domain/deal";
 import { countdownFrom } from "@/domain/release";
 import { useNow } from "@/hooks/use-now";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -17,13 +18,13 @@ type SortId = "discount" | "price" | "ending";
 export const Route = createFileRoute("/deals")({
   head: () => ({
     meta: [
-      { title: "Deals — GamePulse" },
+      { title: "Deals — Inga" },
       {
         name: "description",
         content:
           "Track the biggest game discounts across stores, sorted by discount, price or expiry.",
       },
-      { property: "og:title", content: "Deals — GamePulse" },
+      { property: "og:title", content: "Deals — Inga" },
       { property: "og:description", content: "The biggest game discounts across stores." },
     ],
   }),
@@ -34,7 +35,7 @@ function EndsIn({ endsAt }: { endsAt?: string }) {
   const { t } = useI18n();
   const now = useNow();
   if (!endsAt) return <span className="text-xs text-muted-foreground">{t("deals.noEnd")}</span>;
-  const ended = now !== null && Date.parse(endsAt) <= now;
+  const ended = isDealExpired(endsAt, now);
   if (ended)
     return (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-destructive">

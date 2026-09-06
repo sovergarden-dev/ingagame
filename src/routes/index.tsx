@@ -25,6 +25,8 @@ import { EmptyState } from "@/components/gp/EmptyState";
 import { LAUNCH_WAVE } from "@/domain/mock-data";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useLibrary } from "@/library/LibraryProvider";
+import { hasEnded } from "@/domain/deal";
+import { useNow } from "@/hooks/use-now";
 
 /** Stable reference "today" for the foundation pass. */
 const REFERENCE_DATE = "2026-09-03T00:00:00Z";
@@ -32,13 +34,13 @@ const REFERENCE_DATE = "2026-09-03T00:00:00Z";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "GamePulse — Release Radar for every platform" },
+      { title: "Inga — Release Radar for every platform" },
       {
         name: "description",
         content:
           "Track game releases, countdowns, delays, deals and giveaways across PC, PlayStation, Xbox, Switch, mobile and VR in one command center.",
       },
-      { property: "og:title", content: "GamePulse — Release Radar for every platform" },
+      { property: "og:title", content: "Inga — Release Radar for every platform" },
       {
         property: "og:description",
         content:
@@ -52,8 +54,10 @@ export const Route = createFileRoute("/")({
 function Home() {
   const { t, locale } = useI18n();
   const { wishlist } = useLibrary();
+  const now = useNow();
 
   const myNext = UPCOMING_RELEASES.filter((e) => wishlist.includes(e.game.id)).slice(0, 4);
+  const liveGiveaways = GIVEAWAYS.filter((g) => !hasEnded(g.endsAt, now));
 
   return (
     <div className="w-full min-w-0 space-y-[var(--density-section,2.25rem)] overflow-x-clip">
@@ -136,7 +140,7 @@ function Home() {
             viewAllLabel={t("action.viewAll")}
           />
           <div className="mt-3 space-y-1">
-            {GIVEAWAYS.map((g) => {
+            {liveGiveaways.map((g) => {
               const game = getGame(g.gameId);
               if (!game) return null;
               return (

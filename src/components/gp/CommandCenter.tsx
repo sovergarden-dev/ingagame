@@ -105,12 +105,16 @@ export function CommandCenter({
         <CommandSeparator />
 
         <CommandGroup heading={t("command.navigation")}>
-          {NAV_ITEMS.map(({ to, labelKey, Icon }) => (
-            <CommandItem key={to} value={`go ${t(labelKey)}`} onSelect={() => go(to)}>
-              <Icon className="mr-2 size-4" />
-              {t(labelKey)}
-            </CommandItem>
-          ))}
+          {NAV_ITEMS.map(({ to, labelKey, Icon }) => {
+            const label = t(labelKey);
+            const value = to === "/" ? "home" : to.replace(/^\//, "").replaceAll("/", "-");
+            return (
+              <CommandItem key={to} value={value} keywords={[label]} onSelect={() => go(to)}>
+                <Icon className="mr-2 size-4" />
+                {label}
+              </CommandItem>
+            );
+          })}
         </CommandGroup>
 
         <CommandSeparator />

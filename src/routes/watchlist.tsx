@@ -18,13 +18,13 @@ type TabId = "all" | "wishlist" | "following";
 export const Route = createFileRoute("/watchlist")({
   head: () => ({
     meta: [
-      { title: "Watchlist & Alerts — GamePulse" },
+      { title: "Watchlist & Alerts — Inga" },
       {
         name: "description",
         content:
           "The games you wishlisted or follow, with countdowns and delay alerts in one list.",
       },
-      { property: "og:title", content: "Watchlist & Alerts — GamePulse" },
+      { property: "og:title", content: "Watchlist & Alerts — Inga" },
       {
         property: "og:description",
         content: "Your wishlisted and followed games with countdowns.",

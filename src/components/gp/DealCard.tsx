@@ -1,6 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import type { Deal } from "@/domain/types";
 import { getGame } from "@/domain/mock-data";
+import { isDealExpired } from "@/domain/deal";
+import { useNow } from "@/hooks/use-now";
+import { useI18n } from "@/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 function money(value: number, currency: string, locale: string) {
@@ -19,7 +22,12 @@ export function DealCard({
   className?: string;
 }) {
   const game = getGame(deal.gameId);
+  const now = useNow();
+  const { t } = useI18n();
   if (!game) return null;
+
+  const expired = isDealExpired(deal.endsAt, now);
+  const discountLabel = expired ? t("deals.alert.title") : `-${deal.discountPercent}%`;
 
   if (featured) {
     return (
@@ -28,6 +36,7 @@ export function DealCard({
         params={{ slug: game.slug }}
         className={cn(
           "group relative block overflow-hidden rounded-xl border border-border",
+          expired && "opacity-80",
           className,
         )}
       >
@@ -40,8 +49,13 @@ export function DealCard({
           className="h-36 w-full object-cover sm:h-32 transition-transform duration-300 group-hover:scale-[1.04]"
         />
         <div className="gp-cover-scrim absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
-        <span className="absolute right-2 top-2 rounded-md bg-success px-1.5 py-0.5 text-[11px] font-bold text-background">
-          -{deal.discountPercent}%
+        <span
+          className={cn(
+            "absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[11px] font-bold",
+            expired ? "bg-destructive text-destructive-foreground" : "bg-success text-background",
+          )}
+        >
+          {discountLabel}
         </span>
         <div className="absolute inset-x-3 bottom-2">
           <p className="truncate text-sm font-semibold text-foreground">{game.title}</p>
@@ -64,6 +78,7 @@ export function DealCard({
       params={{ slug: game.slug }}
       className={cn(
         "group flex min-h-14 items-center gap-3 rounded-lg border border-transparent p-2 transition-colors hover:border-border hover:bg-surface-2/70",
+        expired && "opacity-80",
         className,
       )}
     >
@@ -81,8 +96,13 @@ export function DealCard({
         </p>
         <p className="truncate text-xs text-muted-foreground">{deal.store}</p>
       </div>
-      <span className="rounded-md bg-success/15 px-1.5 py-0.5 text-xs font-semibold text-success">
-        -{deal.discountPercent}%
+      <span
+        className={cn(
+          "rounded-md px-1.5 py-0.5 text-xs font-semibold",
+          expired ? "bg-destructive/15 text-destructive" : "bg-success/15 text-success",
+        )}
+      >
+        {discountLabel}
       </span>
       <span className="w-[68px] shrink-0 text-right text-sm font-semibold text-foreground">
         {money(deal.priceCurrent, deal.currency, locale)}

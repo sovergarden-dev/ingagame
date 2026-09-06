@@ -31,13 +31,13 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
-      { title: "Settings — GamePulse" },
+      { title: "Settings — Inga" },
       {
         name: "description",
         content:
-          "Tune theme, accent, density, motion, performance mode, privacy and localization for GamePulse.",
+          "Tune theme, accent, density, motion, performance mode, privacy and localization for Inga.",
       },
-      { property: "og:title", content: "Settings — GamePulse" },
+      { property: "og:title", content: "Settings — Inga" },
       { property: "og:description", content: "Theme, density, performance, privacy and language." },
     ],
   }),

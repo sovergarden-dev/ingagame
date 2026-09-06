@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { CATALOGUES, en, type MessageKey } from "./messages";
 import { DEFAULT_LOCALE, type LocaleCode } from "./locales";
+import { decodeUiText } from "@/lib/ui-text";
 
 interface I18nValue {
   locale: LocaleCode;
@@ -25,8 +26,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const t = useCallback<I18nValue["t"]>(
     (key, vars) => {
       const raw = CATALOGUES[locale]?.[key] ?? en[key] ?? key;
-      if (!vars) return raw;
-      return Object.entries(vars).reduce((acc, [k, v]) => acc.replaceAll(`{${k}}`, String(v)), raw);
+      const interpolated = !vars
+        ? raw
+        : Object.entries(vars).reduce((acc, [k, v]) => acc.replaceAll(`{${k}}`, String(v)), raw);
+      return decodeUiText(interpolated);
     },
     [locale],
   );
