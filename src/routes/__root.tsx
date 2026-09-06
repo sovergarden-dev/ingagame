@@ -145,12 +145,14 @@ function RootComponent() {
           <AuthProvider>
             <LibraryProvider>
               <SteamProvider>
-                <AppShell>
-                  {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-                  <Outlet />
-                </AppShell>
-                <InstallPrompt />
-                <Toaster />
+                <DealAlertsProvider>
+                  <AppShell>
+                    {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                    <Outlet />
+                  </AppShell>
+                  <InstallPrompt />
+                  <Toaster />
+                </DealAlertsProvider>
               </SteamProvider>
             </LibraryProvider>
           </AuthProvider>
