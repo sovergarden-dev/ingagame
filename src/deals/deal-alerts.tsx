@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DEALS, getGame } from "@/domain/mock-data";
+import { isDealExpired, parseDealEndMs } from "@/domain/deal";
 import type { Deal } from "@/domain/types";
 import { useNow } from "@/hooks/use-now";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -38,9 +39,9 @@ export function useExpiredDeals(): DealAlert[] {
   return useMemo(() => {
     if (now === null) return [];
     return DEALS.flatMap((deal) => {
-      if (!deal.endsAt) return [];
-      const expiredAt = Date.parse(deal.endsAt);
-      if (Number.isNaN(expiredAt) || expiredAt > now) return [];
+      if (!isDealExpired(deal.endsAt, now)) return [];
+      const expiredAt = parseDealEndMs(deal.endsAt);
+      if (expiredAt === null) return [];
       const game = getGame(deal.gameId);
       if (!game) return [];
       return [{ deal, title: game.title, slug: game.slug, expiredAt }];

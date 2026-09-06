@@ -10,13 +10,13 @@ import { useI18n } from "@/i18n/I18nProvider";
 export const Route = createFileRoute("/news")({
   head: () => ({
     meta: [
-      { title: "Gaming News & Official Updates — GamePulse" },
+      { title: "Gaming News & Official Updates — Inga" },
       {
         name: "description",
         content:
           "Release announcements, delays and official patch notes, filtered to what you follow.",
       },
-      { property: "og:title", content: "Gaming News & Official Updates — GamePulse" },
+      { property: "og:title", content: "Gaming News & Official Updates — Inga" },
       { property: "og:description", content: "Announcements, delays and official updates." },
     ],
   }),

@@ -112,7 +112,7 @@ export function SteamPanel() {
         <Input
           id="steam-handle"
           value={handle}
-          placeholder="gamepulse"
+          placeholder="yourhandle"
           onChange={(e) => setHandle(e.target.value)}
           disabled={busy}
         />

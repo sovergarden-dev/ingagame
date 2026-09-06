@@ -19,13 +19,13 @@ const FAMILIES: PlatformFamily[] = ["pc", "playstation", "xbox", "nintendo", "mo
 export const Route = createFileRoute("/discover")({
   head: () => ({
     meta: [
-      { title: "Discover Games — GamePulse" },
+      { title: "Discover Games — Inga" },
       {
         name: "description",
         content:
           "Browse games by genre, platform and hype, tuned to the platforms you actually own.",
       },
-      { property: "og:title", content: "Discover Games — GamePulse" },
+      { property: "og:title", content: "Discover Games — Inga" },
       { property: "og:description", content: "Browse games by genre, platform and hype." },
     ],
   }),

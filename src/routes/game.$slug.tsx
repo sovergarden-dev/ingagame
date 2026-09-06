@@ -29,7 +29,7 @@ export const Route = createFileRoute("/game/$slug")({
   },
   head: ({ params }) => {
     const game = GAMES_BY_SLUG.get(params.slug);
-    const title = game ? `${game.title} — GamePulse` : "Game — GamePulse";
+    const title = game ? `${game.title} — Inga` : "Game — Inga";
     const description = game
       ? `${game.title} by ${game.developer}. Release dates, countdown, platforms, deals and news.`
       : "Release dates, countdowns, platforms, deals and news.";

@@ -17,13 +17,13 @@ const SOON_HOURS = 72;
 export const Route = createFileRoute("/free")({
   head: () => ({
     meta: [
-      { title: "Free Games & Giveaways — GamePulse" },
+      { title: "Free Games & Giveaways — Inga" },
       {
         name: "description",
         content:
           "Every game that is free to claim right now, with expiry countdowns you can trust.",
       },
-      { property: "og:title", content: "Free Games & Giveaways — GamePulse" },
+      { property: "og:title", content: "Free Games & Giveaways — Inga" },
       { property: "og:description", content: "Games free to claim right now, with expiry times." },
     ],
   }),

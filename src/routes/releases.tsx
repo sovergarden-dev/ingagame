@@ -32,13 +32,13 @@ const KINDS: ReleaseKind[] = ["full", "early-access", "dlc", "expansion", "demo"
 export const Route = createFileRoute("/releases")({
   head: () => ({
     meta: [
-      { title: "Releases — GamePulse Release Radar" },
+      { title: "Releases — Inga Release Radar" },
       {
         name: "description",
         content:
           "Every upcoming game release grouped by date, with platform filters, delay tracking and confidence states.",
       },
-      { property: "og:title", content: "Releases — GamePulse Release Radar" },
+      { property: "og:title", content: "Releases — Inga Release Radar" },
       {
         property: "og:description",
         content: "Upcoming releases by date, with platform filters and delay tracking.",

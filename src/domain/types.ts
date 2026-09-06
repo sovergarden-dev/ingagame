@@ -1,5 +1,5 @@
 /**
- * Provider-independent domain types for GamePulse.
+ * Provider-independent domain types for Inga.
  * Nothing here may depend on a specific third-party game API.
  */
 

@@ -32,13 +32,13 @@ const REFERENCE_DATE = "2026-09-03T00:00:00Z";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "GamePulse — Release Radar for every platform" },
+      { title: "Inga — Release Radar for every platform" },
       {
         name: "description",
         content:
           "Track game releases, countdowns, delays, deals and giveaways across PC, PlayStation, Xbox, Switch, mobile and VR in one command center.",
       },
-      { property: "og:title", content: "GamePulse — Release Radar for every platform" },
+      { property: "og:title", content: "Inga — Release Radar for every platform" },
       {
         property: "og:description",
         content:

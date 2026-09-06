@@ -377,3 +377,14 @@
     display: none;
   }
 }
+
+/* Lovable hosting injects an "Edit with Lovable" badge; hide scaffold leftover. */
+#lovable-badge {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+}

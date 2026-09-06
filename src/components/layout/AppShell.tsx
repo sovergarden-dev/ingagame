@@ -17,6 +17,7 @@ import {
 import { MAIN_NAV, MOBILE_NAV } from "./nav-items";
 import { Logo } from "./Logo";
 import { CommandCenter } from "@/components/gp/CommandCenter";
+import { decodeUiText } from "@/lib/ui-text";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   DropdownMenu,
@@ -43,6 +44,7 @@ function NavList({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: (
   return (
     <nav aria-label={t("nav.primary")} className="flex flex-col gap-1">
       {MAIN_NAV.map(({ to, labelKey, Icon }) => {
+        const label = decodeUiText(t(labelKey));
         const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
         return (
           <Link
@@ -50,7 +52,8 @@ function NavList({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: (
             to={to as never}
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
-            title={collapsed ? t(labelKey) : undefined}
+            aria-label={label}
+            title={collapsed ? label : undefined}
             className={cn(
               "group flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
               collapsed && "justify-center px-0",
@@ -65,7 +68,7 @@ function NavList({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: (
               )}
               <Icon aria-hidden className={cn("size-4.5", active && "text-accent")} />
             </span>
-            {!collapsed && <span className="truncate">{t(labelKey)}</span>}
+            {!collapsed && <span className="truncate">{label}</span>}
           </Link>
         );
       })}
@@ -351,19 +354,21 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <ul className="grid grid-cols-5">
           {MOBILE_NAV.map(({ to, labelKey, Icon }) => {
+            const label = decodeUiText(t(labelKey));
             const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
             return (
               <li key={to}>
                 <Link
                   to={to as never}
                   aria-current={active ? "page" : undefined}
+                  aria-label={label}
                   className={cn(
                     "flex min-h-14 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-medium transition-colors",
                     active ? "text-accent" : "text-muted-foreground",
                   )}
                 >
                   <Icon aria-hidden className="size-5" />
-                  <span className="truncate">{t(labelKey)}</span>
+                  <span className="truncate">{label}</span>
                 </Link>
               </li>
             );

@@ -10,12 +10,12 @@ import { useAuth } from "@/auth/AuthProvider";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — GamePulse" },
+      { title: "Sign in — Inga" },
       {
         name: "description",
-        content: "Sign in to GamePulse to sync your wishlist, followed games and release alerts.",
+        content: "Sign in to Inga to sync your wishlist, followed games and release alerts.",
       },
-      { property: "og:title", content: "Sign in — GamePulse" },
+      { property: "og:title", content: "Sign in — Inga" },
       { property: "og:description", content: "Sync your watchlist across devices." },
     ],
   }),

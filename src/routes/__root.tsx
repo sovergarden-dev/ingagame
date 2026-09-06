@@ -15,6 +15,7 @@ import { I18nProvider } from "@/i18n/I18nProvider";
 import { PreferencesProvider } from "@/preferences/PreferencesProvider";
 import { LibraryProvider } from "@/library/LibraryProvider";
 import { AuthProvider } from "@/auth/AuthProvider";
+import { APP_NAME } from "@/domain/brand";
 
 import { SteamProvider } from "@/integrations/steam/SteamProvider";
 import { AppShell } from "@/components/layout/AppShell";
@@ -87,14 +88,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { name: "author", content: "GamePulse" },
+      { name: "author", content: APP_NAME },
       { name: "theme-color", content: "#0b0b0f" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-title", content: "GamePulse" },
+      { name: "apple-mobile-web-app-title", content: APP_NAME },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
 
       { property: "og:type", content: "website" },
-      { property: "og:site_name", content: "GamePulse" },
+      { property: "og:site_name", content: APP_NAME },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
@@ -138,6 +139,18 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    const removeBadge = () => document.getElementById("lovable-badge")?.remove();
+    removeBadge();
+    const observer = new MutationObserver(removeBadge);
+    observer.observe(document.body, { childList: true });
+    const timeout = window.setTimeout(removeBadge, 2000);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timeout);
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -23,7 +23,7 @@ interface AuthValue {
 
 const AuthContext = createContext<AuthValue | null>(null);
 
-/** Cloud-backed account session for GamePulse. */
+/** Cloud-backed account session for Inga. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
