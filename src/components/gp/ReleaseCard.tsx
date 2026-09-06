@@ -43,7 +43,7 @@ export function ReleaseCard({
             height={900}
             className="size-full object-cover"
           />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-background/90 to-transparent" />
+          <div className="gp-cover-scrim pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-background/90 to-transparent" />
           {event.state === "delayed" && (
             <span className="absolute left-2 top-2 rounded-md bg-destructive px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-destructive-foreground">
               +{event.delayDays}d

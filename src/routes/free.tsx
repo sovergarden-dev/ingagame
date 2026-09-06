@@ -53,7 +53,7 @@ function GiveawayCard({ giveaway }: { giveaway: Giveaway }) {
             loading="lazy"
             className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/45 to-transparent" />
+          <div className="gp-cover-scrim absolute inset-0 bg-gradient-to-t from-background via-background/45 to-transparent" />
           <span className="absolute left-3 top-3 rounded-md bg-success px-2 py-0.5 text-[11px] font-bold text-background">
             FREE
           </span>

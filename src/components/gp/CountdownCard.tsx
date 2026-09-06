@@ -68,7 +68,7 @@ export function CountdownHero({
         className="absolute inset-0 size-full object-cover object-center"
       />
       <div
-        className="absolute inset-0"
+        className="gp-hero-scrim absolute inset-0"
         style={{
           background:
             "linear-gradient(100deg, var(--background) 6%, oklch(from var(--background) l c h / 0.86) 42%, oklch(from var(--background) l c h / 0.15) 82%)",
@@ -77,7 +77,7 @@ export function CountdownHero({
       {/* Vertical scrim keeps text legible on narrow screens where the art sits behind the copy. */}
       <div
         aria-hidden
-        className="absolute inset-0 lg:hidden"
+        className="gp-hero-scrim-mobile absolute inset-0 lg:hidden"
         style={{
           background:
             "linear-gradient(to top, var(--background) 18%, oklch(from var(--background) l c h / 0.82) 62%, oklch(from var(--background) l c h / 0.45) 100%)",
