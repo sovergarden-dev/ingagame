@@ -276,6 +276,7 @@ const vi: Partial<Record<MessageKey, string>> = {
   "nav.releases": "Phát hành",
   "nav.deals": "Ưu đãi",
   "nav.free": "Game miễn phí",
+  "nav.freeShort": "Miễn phí",
   "nav.news": "Tin tức",
   "nav.discover": "Khám phá",
   "nav.watchlist": "Theo dõi",
