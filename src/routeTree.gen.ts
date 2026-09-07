@@ -15,6 +15,7 @@ import { Route as DealsRouteImport } from './routes/deals'
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as FreeRouteImport } from './routes/free'
 import { Route as NewsRouteImport } from './routes/news'
+import { Route as RadarRouteImport } from './routes/radar'
 import { Route as ReleasesRouteImport } from './routes/releases'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
@@ -50,6 +51,11 @@ const NewsRoute = NewsRouteImport.update({
   path: '/news',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RadarRoute = RadarRouteImport.update({
+  id: '/radar',
+  path: '/radar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReleasesRoute = ReleasesRouteImport.update({
   id: '/releases',
   path: '/releases',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/discover': typeof DiscoverRoute
   '/free': typeof FreeRoute
   '/news': typeof NewsRoute
+  '/radar': typeof RadarRoute
   '/releases': typeof ReleasesRoute
   '/settings': typeof SettingsRoute
   '/watchlist': typeof WatchlistRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/discover': typeof DiscoverRoute
   '/free': typeof FreeRoute
   '/news': typeof NewsRoute
+  '/radar': typeof RadarRoute
   '/releases': typeof ReleasesRoute
   '/settings': typeof SettingsRoute
   '/watchlist': typeof WatchlistRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/discover': typeof DiscoverRoute
   '/free': typeof FreeRoute
   '/news': typeof NewsRoute
+  '/radar': typeof RadarRoute
   '/releases': typeof ReleasesRoute
   '/settings': typeof SettingsRoute
   '/watchlist': typeof WatchlistRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/free'
     | '/news'
+    | '/radar'
     | '/releases'
     | '/settings'
     | '/watchlist'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/free'
     | '/news'
+    | '/radar'
     | '/releases'
     | '/settings'
     | '/watchlist'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/free'
     | '/news'
+    | '/radar'
     | '/releases'
     | '/settings'
     | '/watchlist'
@@ -154,6 +166,7 @@ export interface RootRouteChildren {
   DiscoverRoute: typeof DiscoverRoute
   FreeRoute: typeof FreeRoute
   NewsRoute: typeof NewsRoute
+  RadarRoute: typeof RadarRoute
   ReleasesRoute: typeof ReleasesRoute
   SettingsRoute: typeof SettingsRoute
   WatchlistRoute: typeof WatchlistRoute
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NewsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/radar': {
+      id: '/radar'
+      path: '/radar'
+      fullPath: '/radar'
+      preLoaderRoute: typeof RadarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/releases': {
       id: '/releases'
       path: '/releases'
@@ -242,6 +262,7 @@ const rootRouteChildren: RootRouteChildren = {
   DiscoverRoute: DiscoverRoute,
   FreeRoute: FreeRoute,
   NewsRoute: NewsRoute,
+  RadarRoute: RadarRoute,
   ReleasesRoute: ReleasesRoute,
   SettingsRoute: SettingsRoute,
   WatchlistRoute: WatchlistRoute,

@@ -13,6 +13,7 @@ export const en = {
   "nav.releases": "Releases",
   "nav.deals": "Deals",
   "nav.free": "Free Games",
+  "nav.freeShort": "Free",
   "nav.news": "News",
   "nav.discover": "Discover",
   "nav.watchlist": "Watchlist",
