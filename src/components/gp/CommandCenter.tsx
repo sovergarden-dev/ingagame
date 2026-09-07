@@ -22,8 +22,9 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { GAMES, UPCOMING_RELEASES } from "@/domain/mock-data";
 import { formatReleaseDate } from "@/domain/release";
+import { splitReleaseItems, uniqueGamesFromReleases } from "@/integrations/content/feed";
+import { useReleasesFeed } from "@/integrations/content/use-content-feed";
 import { useI18n } from "@/i18n/I18nProvider";
 
 const NAV_ITEMS = [
@@ -47,6 +48,10 @@ export function CommandCenter({
 }) {
   const { t, locale } = useI18n();
   const navigate = useNavigate();
+  const releasesFeed = useReleasesFeed();
+  const releaseEntries = releasesFeed.data?.items ?? [];
+  const games = uniqueGamesFromReleases(releaseEntries).slice(0, 6);
+  const upcoming = splitReleaseItems(releaseEntries).upcoming.slice(0, 4);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -71,7 +76,7 @@ export function CommandCenter({
         <CommandEmpty>{t("command.empty")}</CommandEmpty>
 
         <CommandGroup heading={t("command.games")}>
-          {GAMES.slice(0, 6).map((game) => (
+          {games.map((game) => (
             <CommandItem
               key={game.id}
               value={`game ${game.title}`}
@@ -87,7 +92,7 @@ export function CommandCenter({
         <CommandSeparator />
 
         <CommandGroup heading={t("command.releases")}>
-          {UPCOMING_RELEASES.slice(0, 4).map(({ game, event }) => (
+          {upcoming.map(({ game, event }) => (
             <CommandItem
               key={event.id}
               value={`release ${game.title}`}

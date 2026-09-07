@@ -1,7 +1,13 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { CalendarPlus, PlayCircle, Star } from "lucide-react";
-import { GAMES, GAMES_BY_SLUG, LAUNCH_WAVE, VIDEOS } from "@/domain/mock-data";
-import { useDealsFeed, useNewsFeed } from "@/integrations/content/use-content-feed";
+import { GAMES_BY_SLUG, LAUNCH_WAVE, VIDEOS } from "@/domain/mock-data";
+import { findGameBySlug, uniqueGamesFromReleases } from "@/integrations/content/feed";
+import {
+  feedGateProps,
+  useDealsFeed,
+  useNewsFeed,
+  useReleasesFeed,
+} from "@/integrations/content/use-content-feed";
 import { formatReleaseDate, isCountdownable } from "@/domain/release";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -18,22 +24,19 @@ import { GameCard } from "@/components/gp/GameCard";
 import { DealCard } from "@/components/gp/DealCard";
 import { EmptyState } from "@/components/gp/EmptyState";
 import { FeedGate } from "@/components/gp/FeedGate";
+import { PanelSkeleton } from "@/components/gp/Skeletons";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useLibrary } from "@/library/LibraryProvider";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/game/$slug")({
-  loader: ({ params }) => {
-    const game = GAMES_BY_SLUG.get(params.slug);
-    if (!game) throw notFound();
-    return { slug: params.slug };
-  },
+  loader: ({ params }) => ({ slug: params.slug }),
   head: ({ params }) => {
-    const game = GAMES_BY_SLUG.get(params.slug);
-    const title = game ? `${game.title} — Inga` : "Game — Inga";
-    const description = game
-      ? `${game.title} by ${game.developer}. Release dates, countdown, platforms, deals and news.`
+    const mock = import.meta.env.DEV ? GAMES_BY_SLUG.get(params.slug) : undefined;
+    const title = mock ? `${mock.title} — Inga` : "Game — Inga";
+    const description = mock
+      ? `${mock.title} by ${mock.developer}. Release dates, countdown, platforms, deals and news.`
       : "Release dates, countdowns, platforms, deals and news.";
     return {
       meta: [
@@ -51,16 +54,28 @@ function GameDetail() {
   const { slug } = Route.useLoaderData();
   const { t, locale } = useI18n();
   const { isFollowing, toggleFollow } = useLibrary();
-  const game = GAMES_BY_SLUG.get(slug)!;
+  const releasesFeed = useReleasesFeed();
   const dealsFeed = useDealsFeed();
   const newsFeed = useNewsFeed();
-  const primary = game.releaseEvents[0]!;
+  const fromFeed = findGameBySlug(slug, {
+    releases: releasesFeed.data?.items,
+    deals: dealsFeed.data?.items,
+    news: newsFeed.data?.items,
+  });
+  const pendingIdentity =
+    !fromFeed && (releasesFeed.isPending || dealsFeed.isPending || newsFeed.isPending);
+  const game = fromFeed ?? (import.meta.env.DEV ? GAMES_BY_SLUG.get(slug) : undefined);
+
+  if (pendingIdentity) return <PanelSkeleton rows={6} />;
+  if (!game) throw notFound();
+
+  const primary = game.releaseEvents[0];
   const deals = (dealsFeed.data?.items ?? []).filter((d) => d.gameId === game.id);
   const news = (newsFeed.data?.items ?? []).filter((a) => a.gameId === game.id);
-  const videos = VIDEOS.filter((v) => v.gameId === game.id);
-  const similar = GAMES.filter(
-    (g) => g.id !== game.id && g.genres.some((genre) => game.genres.includes(genre)),
-  ).slice(0, 6);
+  const videos = import.meta.env.DEV ? VIDEOS.filter((v) => v.gameId === game.id) : [];
+  const similar = uniqueGamesFromReleases(releasesFeed.data?.items ?? [])
+    .filter((g) => g.id !== game.id)
+    .slice(0, 6);
   const following = isFollowing(game.id);
 
   return (
@@ -90,12 +105,16 @@ function GameDetail() {
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <ReleaseStatusBadge confidence={primary.confidence} />
-              <ReleaseKindBadge kind={primary.kind} />
-              <ReleaseStateBadge
-                state={primary.state}
-                {...(primary.delayDays ? { delayDays: primary.delayDays } : {})}
-              />
+              {primary ? (
+                <>
+                  <ReleaseStatusBadge confidence={primary.confidence} />
+                  <ReleaseKindBadge kind={primary.kind} />
+                  <ReleaseStateBadge
+                    state={primary.state}
+                    {...(primary.delayDays ? { delayDays: primary.delayDays } : {})}
+                  />
+                </>
+              ) : null}
             </div>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               {game.title}
@@ -106,9 +125,11 @@ function GameDetail() {
             <p className="mt-1 text-sm text-muted-foreground">
               {game.developer} · {game.publisher}
             </p>
-            <p className="mt-2 text-sm text-foreground/90">
-              {formatReleaseDate(primary.date, primary.precision, locale)}
-            </p>
+            {primary ? (
+              <p className="mt-2 text-sm text-foreground/90">
+                {formatReleaseDate(primary.date, primary.precision, locale)}
+              </p>
+            ) : null}
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
               {game.platforms.map((p) => (
                 <PlatformBadge key={p} platform={p} size="sm" />
@@ -171,7 +192,7 @@ function GameDetail() {
         </TabsContent>
 
         <TabsContent value="release" className="mt-4 space-y-4">
-          {isCountdownable(primary) && primary.state !== "available" && (
+          {primary && isCountdownable(primary) && primary.state !== "available" && (
             <div className="gp-panel p-5">
               <p className="gp-eyebrow mb-2">{t("countdown.eyebrow")}</p>
               <CountdownUnits target={primary.date} />
@@ -201,11 +222,7 @@ function GameDetail() {
         </TabsContent>
 
         <TabsContent value="deals" className="mt-4">
-          <FeedGate
-            isPending={dealsFeed.isPending}
-            result={dealsFeed.data}
-            onRetry={() => void dealsFeed.refetch()}
-          >
+          <FeedGate {...feedGateProps(dealsFeed)}>
             {deals.length ? (
               <div className="gp-panel space-y-1 p-4">
                 {deals.map((deal) => (
@@ -219,11 +236,7 @@ function GameDetail() {
         </TabsContent>
 
         <TabsContent value="news" className="mt-4">
-          <FeedGate
-            isPending={newsFeed.isPending}
-            result={newsFeed.data}
-            onRetry={() => void newsFeed.refetch()}
-          >
+          <FeedGate {...feedGateProps(newsFeed)}>
             {news.length ? (
               <ul className="gp-panel divide-y divide-border p-4">
                 {news.map((a) => (
@@ -264,9 +277,11 @@ function GameDetail() {
         <TabsContent value="similar" className="mt-4">
           <SectionHeader title={t("tabs.similar")} />
           <div className="gp-scroll-x mt-3 flex gap-3 pb-2">
-            {similar.map((g) => (
-              <GameCard key={g.id} game={g} />
-            ))}
+            {similar.length ? (
+              similar.map((g) => <GameCard key={g.id} game={g} />)
+            ) : (
+              <EmptyState title={t("empty.title")} body={t("empty.body")} />
+            )}
           </div>
         </TabsContent>
       </Tabs>
