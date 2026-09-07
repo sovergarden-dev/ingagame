@@ -230,6 +230,13 @@ export const en = {
 
   "steam.title": "Steam Connection",
   "steam.body": "Link your Steam handle to pull your library and match releases you already own.",
+  "steam.bodyServer":
+    "Sign in, then connect Steam. We only store your public profile — name, avatar, and Steam ID.",
+  "steam.redirectNote": "You'll be redirected to Steam to approve the connection.",
+  "steam.syncStub": "Library and wishlist sync will run as a server job later.",
+  "steam.signInFirst": "Sign in to connect Steam.",
+  "steam.error.signIn": "Sign in to connect Steam.",
+  "steam.error.start": "Steam connect isn't available yet. Try again later.",
   "steam.handle": "Steam handle or vanity URL",
   "steam.connect": "Connect Steam",
   "steam.connecting": "Connecting…",
