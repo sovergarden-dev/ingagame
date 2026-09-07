@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "node --experimental-strip-types --test src/lib/ui-text.test.ts"
+    "test": "node --experimental-strip-types --test './src/**/*.test.ts'"
   },
   "overrides": {
     "rolldown": "1.2.1"
