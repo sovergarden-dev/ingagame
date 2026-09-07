@@ -14,7 +14,7 @@ import {
   Settings,
   User,
 } from "lucide-react";
-import { MAIN_NAV, MOBILE_NAV } from "./nav-items";
+import { MAIN_NAV, MOBILE_NAV, MOBILE_NAV_MIN_HIT_PX, isNavItemActive } from "./nav-items";
 import { Logo } from "./Logo";
 import { CommandCenter } from "@/components/gp/CommandCenter";
 import { decodeUiText } from "@/lib/ui-text";
@@ -45,7 +45,7 @@ function NavList({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: (
     <nav aria-label={t("nav.primary")} className="flex flex-col gap-1">
       {MAIN_NAV.map(({ to, labelKey, Icon }) => {
         const label = decodeUiText(t(labelKey));
-        const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
+        const active = isNavItemActive(to, pathname);
         return (
           <Link
             key={to}
@@ -336,7 +336,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1800px] px-3 pb-28 pt-4 sm:px-5 sm:pt-6 md:pb-12">
+        <main className="mx-auto w-full max-w-[1800px] px-3 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-4 sm:px-5 sm:pt-6 md:pb-12">
           {children}
         </main>
 
@@ -349,26 +349,30 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Mobile bottom navigation */}
       <nav
+        id="mobile-bottom-nav"
+        data-testid="mobile-bottom-nav"
         aria-label={t("nav.primary")}
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border gp-glass pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         <ul className="grid grid-cols-5">
-          {MOBILE_NAV.map(({ to, labelKey, Icon }) => {
-            const label = decodeUiText(t(labelKey));
-            const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
+          {MOBILE_NAV.map(({ to, labelKey, barLabelKey, Icon }) => {
+            const label = decodeUiText(t(barLabelKey ?? labelKey));
+            const active = isNavItemActive(to, pathname);
             return (
               <li key={to}>
                 <Link
                   to={to as never}
+                  data-nav-to={to}
                   aria-current={active ? "page" : undefined}
                   aria-label={label}
                   className={cn(
-                    "flex min-h-14 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-medium transition-colors",
+                    "flex min-h-14 min-w-[44px] touch-manipulation flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-medium transition-colors",
                     active ? "text-accent" : "text-muted-foreground",
                   )}
+                  style={{ minWidth: MOBILE_NAV_MIN_HIT_PX }}
                 >
                   <Icon aria-hidden className="size-5" />
-                  <span className="truncate">{label}</span>
+                  <span className="max-w-full truncate">{label}</span>
                 </Link>
               </li>
             );
