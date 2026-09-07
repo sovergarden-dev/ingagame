@@ -1,13 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowUpRight, Clock3, Newspaper, TrendingUp } from "lucide-react";
-import {
-  FEATURED_GAME,
-  FEATURED_RELEASE,
-  GIVEAWAYS,
-  HERO_BACKDROP,
-  TRENDING,
-  getGame,
-} from "@/domain/mock-data";
+import { GIVEAWAYS, LAUNCH_WAVE, TRENDING, getGame } from "@/domain/mock-data";
 import { formatReleaseDate } from "@/domain/release";
 import { CountdownChip, CountdownHero } from "@/components/gp/CountdownCard";
 import { ReleaseRadar } from "@/components/gp/ReleaseRadar";
@@ -18,9 +11,14 @@ import { FreshnessStatus } from "@/components/gp/FreshnessStatus";
 import { GlobalLaunchWave } from "@/components/gp/GlobalLaunchWave";
 import { EmptyState } from "@/components/gp/EmptyState";
 import { FeedGate } from "@/components/gp/FeedGate";
-import { LAUNCH_WAVE } from "@/domain/mock-data";
-import { freshnessFromFeed, splitReleaseItems } from "@/integrations/content/feed";
+import { PanelSkeleton } from "@/components/gp/Skeletons";
 import {
+  freshnessFromFeed,
+  radarReferenceIso,
+  splitReleaseItems,
+} from "@/integrations/content/feed";
+import {
+  feedGateProps,
   useDealsFeed,
   useNewsFeed,
   useReleasesFeed,
@@ -29,9 +27,6 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { useLibrary } from "@/library/LibraryProvider";
 import { hasEnded } from "@/domain/deal";
 import { useNow } from "@/hooks/use-now";
-
-/** Stable reference "today" for the foundation pass. */
-const REFERENCE_DATE = "2026-09-03T00:00:00Z";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -63,10 +58,20 @@ function Home() {
   const { upcoming, recent, changed } = splitReleaseItems(releasesFeed.data?.items ?? []);
   const deals = dealsFeed.data?.items ?? [];
   const articles = newsFeed.data?.items ?? [];
+  const featured = upcoming[0];
+  const radarClock = radarReferenceIso(now);
+  const releaseGate = feedGateProps(releasesFeed);
+  const dealsGate = feedGateProps(dealsFeed);
+  const newsGate = feedGateProps(newsFeed);
 
   const myNext = upcoming.filter((e) => wishlist.includes(e.game.id)).slice(0, 4);
   const liveGiveaways = GIVEAWAYS.filter((g) => !hasEnded(g.endsAt, now));
-  const freshness = freshnessFromFeed(releasesFeed.data, releasesFeed.isPending, Date.now());
+  const freshness = freshnessFromFeed(
+    releasesFeed.data,
+    releasesFeed.isPending,
+    Date.now(),
+    releasesFeed.isError,
+  );
 
   return (
     <div className="w-full min-w-0 space-y-[var(--density-section,2.25rem)] overflow-x-clip">
@@ -75,14 +80,18 @@ function Home() {
         <FreshnessStatus status={freshness} />
       </div>
 
-      <CountdownHero game={FEATURED_GAME} event={FEATURED_RELEASE} backdropUrl={HERO_BACKDROP} />
+      {releasesFeed.isPending && !featured ? (
+        <PanelSkeleton rows={4} />
+      ) : featured ? (
+        <CountdownHero
+          game={featured.game}
+          event={featured.event}
+          backdropUrl={featured.game.backdropUrl ?? featured.game.coverUrl}
+        />
+      ) : null}
 
-      <FeedGate
-        isPending={releasesFeed.isPending}
-        result={releasesFeed.data}
-        onRetry={() => void releasesFeed.refetch()}
-      >
-        <ReleaseRadar entries={upcoming} referenceDate={REFERENCE_DATE} />
+      <FeedGate {...releaseGate}>
+        <ReleaseRadar entries={upcoming} referenceDate={radarClock} />
       </FeedGate>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -93,29 +102,27 @@ function Home() {
             viewAllTo="/watchlist"
             viewAllLabel={t("action.viewAll")}
           />
-          <div className="mt-3 space-y-1">
-            {myNext.length ? (
-              myNext.map(({ game, event }) => (
-                <CountdownChip key={event.id} game={game} event={event} />
-              ))
-            ) : (
-              <EmptyState
-                title={t("empty.title")}
-                body={t("empty.body")}
-                className="border-none shadow-none"
-              />
-            )}
-          </div>
+          <FeedGate {...releaseGate} showStaleBanner={false}>
+            <div className="mt-3 space-y-1">
+              {myNext.length ? (
+                myNext.map(({ game, event }) => (
+                  <CountdownChip key={event.id} game={game} event={event} />
+                ))
+              ) : (
+                <EmptyState
+                  title={t("empty.title")}
+                  body={t("empty.body")}
+                  className="border-none shadow-none"
+                />
+              )}
+            </div>
+          </FeedGate>
         </section>
 
         {/* Delay radar */}
         <section className="gp-panel p-4 sm:p-5">
           <SectionHeader title={t("section.changes")} />
-          <FeedGate
-            isPending={releasesFeed.isPending}
-            result={releasesFeed.data}
-            onRetry={() => void releasesFeed.refetch()}
-          >
+          <FeedGate {...releaseGate} showStaleBanner={false}>
             <ul className="mt-3 space-y-1">
               {changed.map(({ game, event }) => (
                 <li key={event.id}>
@@ -186,11 +193,7 @@ function Home() {
             viewAllTo="/deals"
             viewAllLabel={t("action.viewAll")}
           />
-          <FeedGate
-            isPending={dealsFeed.isPending}
-            result={dealsFeed.data}
-            onRetry={() => void dealsFeed.refetch()}
-          >
+          <FeedGate {...dealsGate}>
             <div className="mt-3 space-y-3">
               {deals[0] ? <DealCard deal={deals[0]} locale={locale} featured /> : null}
               <div className="space-y-1">
@@ -226,11 +229,7 @@ function Home() {
           viewAllTo="/releases"
           viewAllLabel={t("action.viewAll")}
         />
-        <FeedGate
-          isPending={releasesFeed.isPending}
-          result={releasesFeed.data}
-          onRetry={() => void releasesFeed.refetch()}
-        >
+        <FeedGate {...releaseGate} showStaleBanner={false}>
           <div className="gp-scroll-x -mx-1 mt-3 flex gap-3 px-1 pb-2">
             {recent.map(({ game }) => (
               <GameCard key={game.id} game={game} />
@@ -247,11 +246,7 @@ function Home() {
           viewAllLabel={t("action.viewAll")}
           actions={<Newspaper aria-hidden className="size-4 text-muted-foreground" />}
         />
-        <FeedGate
-          isPending={newsFeed.isPending}
-          result={newsFeed.data}
-          onRetry={() => void newsFeed.refetch()}
-        >
+        <FeedGate {...newsGate}>
           <ul className="mt-3 divide-y divide-border">
             {articles.map((article) => (
               <li key={article.id} className="group flex items-start gap-3 py-3">

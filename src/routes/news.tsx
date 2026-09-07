@@ -6,7 +6,7 @@ import { FilterChip } from "@/components/gp/FilterChip";
 import { EmptyState } from "@/components/gp/EmptyState";
 import { FeedGate } from "@/components/gp/FeedGate";
 import { freshnessFromFeed } from "@/integrations/content/feed";
-import { useNewsFeed } from "@/integrations/content/use-content-feed";
+import { feedGateProps, useNewsFeed } from "@/integrations/content/use-content-feed";
 import { useI18n } from "@/i18n/I18nProvider";
 
 export const Route = createFileRoute("/news")({
@@ -41,7 +41,7 @@ function NewsPage() {
       : articlesFeed;
     return [...list].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
   }, [articlesFeed, sources]);
-  const freshness = freshnessFromFeed(feed.data, feed.isPending, Date.now());
+  const freshness = freshnessFromFeed(feed.data, feed.isPending, Date.now(), feed.isError);
 
   const fmt = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
@@ -83,7 +83,7 @@ function NewsPage() {
         </div>
       }
     >
-      <FeedGate isPending={feed.isPending} result={feed.data} onRetry={() => void feed.refetch()}>
+      <FeedGate {...feedGateProps(feed)}>
         {!lead ? (
           <EmptyState
             title={t("common.noResults")}

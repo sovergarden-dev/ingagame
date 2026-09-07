@@ -122,6 +122,7 @@ export const en = {
   "feed.error.title": "Couldn't load this feed",
   "feed.error.body": "The catalogue is temporarily unavailable. Try again in a moment.",
   "feed.error.retry": "Try again",
+  "feed.stale.body": "Showing the last catalogue we could load. Retry to refresh.",
 
   "views.rail": "Rail",
   "views.timeline": "Timeline",
@@ -326,6 +327,7 @@ const vi: Partial<Record<MessageKey, string>> = {
   "feed.error.title": "Không tải được mục này",
   "feed.error.body": "Catalogue tạm thời không khả dụng. Thử lại sau một lúc.",
   "feed.error.retry": "Thử lại",
+  "feed.stale.body": "Đang hiện catalogue lần tải gần nhất. Thử lại để làm mới.",
   "common.reset": "Xoá bộ lọc",
   "common.noResults": "Không có kết quả phù hợp.",
   "auth.title": "Đăng nhập Inga",

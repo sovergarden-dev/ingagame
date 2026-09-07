@@ -24,6 +24,7 @@ export function PlatformBadge({
   className?: string;
 }) {
   const meta = PLATFORMS[platform];
+  if (!meta) return null;
   const Icon = ICONS[meta.family];
   return (
     <span

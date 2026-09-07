@@ -4,7 +4,11 @@ import {
   allowMockContentFeed,
   contentFeedUrl,
   fetchContentKind,
+  findGameBySlug,
+  freshnessFromFeed,
   parseContentFeedResponse,
+  radarReferenceIso,
+  requireFeedSuccess,
   selectArticleItems,
   selectDealItems,
   selectReleaseItems,
@@ -57,17 +61,41 @@ describe("parseContentFeedResponse", () => {
 });
 
 describe("selectReleaseItems", () => {
-  it("drops rows that are not { game, event } catalogue entries", () => {
+  it("drops rows that are not renderable { game, event } catalogue entries", () => {
+    const event = {
+      id: "e1",
+      gameId: "g1",
+      date: "2026-09-10T00:00:00.000Z",
+      precision: "date",
+      confidence: "confirmed",
+      kind: "full",
+      state: "upcoming",
+      platforms: ["pc"],
+    };
+    const game = {
+      id: "g1",
+      slug: "harborlight",
+      title: "Harborlight",
+      developer: "Studio",
+      publisher: "Pub",
+      summary: "A game",
+      genres: ["Adventure"],
+      coverUrl: "https://example.test/cover.jpg",
+      platforms: ["pc"],
+      releaseEvents: [event],
+    };
     const kept = selectReleaseItems([
       {},
       {
         game: { id: "g1", slug: "harborlight", title: "Harborlight" },
         event: { id: "e1", state: "upcoming", platforms: ["pc"] },
       },
+      { game, event },
       { game: "nope", event: { id: "e2" } },
     ]);
     assert.equal(kept.length, 1);
     assert.equal(kept[0]?.event.id, "e1");
+    assert.equal(kept[0]?.event.date.slice(0, 10), "2026-09-10");
   });
 });
 
@@ -84,6 +112,16 @@ describe("selectDealItems / selectArticleItems", () => {
           priceBase: 2,
           discountPercent: 50,
           currency: "USD",
+        },
+        {
+          id: "d-bad-game",
+          gameId: "g1",
+          store: "Steam",
+          priceCurrent: 1,
+          priceBase: 2,
+          discountPercent: 50,
+          currency: "USD",
+          game: { slug: "incomplete" },
         },
       ]).map((d) => d.id),
       ["d1"],
@@ -189,5 +227,105 @@ describe("fetchContentKind", () => {
       source: "server",
       status: "empty",
     });
+  });
+});
+
+describe("requireFeedSuccess", () => {
+  it("throws on empty error so React Query can keep the last good payload", () => {
+    assert.throws(
+      () =>
+        requireFeedSuccess({
+          items: [],
+          fetchedAt: null,
+          source: "empty",
+          status: "error",
+        }),
+      { name: "FeedUnavailableError" },
+    );
+  });
+
+  it("keeps DEV mock / last items even when status is error", () => {
+    const result = requireFeedSuccess({
+      items: [{ id: "kept" }],
+      fetchedAt: null,
+      source: "mock",
+      status: "error",
+    });
+    assert.equal(result.items[0]?.id, "kept");
+  });
+});
+
+describe("freshnessFromFeed", () => {
+  const fetchedAt = "2026-09-07T00:00:00.000Z";
+  const nowMs = Date.parse("2026-09-07T00:02:00.000Z");
+
+  it("marks query errors and mock fallbacks as stale", () => {
+    assert.equal(
+      freshnessFromFeed(
+        { items: [{ id: "1" }], fetchedAt, source: "server", status: "ok" },
+        false,
+        nowMs,
+        true,
+      ).state,
+      "stale",
+    );
+    assert.equal(
+      freshnessFromFeed(
+        { items: [{ id: "1" }], fetchedAt, source: "mock", status: "error" },
+        false,
+        nowMs,
+      ).state,
+      "stale",
+    );
+  });
+
+  it("is fresh when the server payload is recent", () => {
+    assert.equal(
+      freshnessFromFeed(
+        { items: [{ id: "1" }], fetchedAt, source: "server", status: "ok" },
+        false,
+        nowMs,
+      ).state,
+      "fresh",
+    );
+  });
+});
+
+describe("findGameBySlug", () => {
+  it("prefers release snapshots then deals then news", () => {
+    const event = {
+      id: "e1",
+      gameId: "g1",
+      date: "2026-09-10T00:00:00.000Z",
+      precision: "date" as const,
+      confidence: "confirmed" as const,
+      kind: "full" as const,
+      state: "upcoming" as const,
+      platforms: ["pc" as const],
+    };
+    const game = {
+      id: "g1",
+      slug: "harborlight",
+      title: "Harborlight",
+      developer: "Studio",
+      publisher: "Pub",
+      summary: "A game",
+      genres: ["Adventure"],
+      coverUrl: "https://example.test/cover.jpg",
+      platforms: ["pc" as const],
+      releaseEvents: [event],
+    };
+    assert.equal(findGameBySlug("harborlight", { releases: [{ game, event }] })?.id, "g1");
+    assert.equal(findGameBySlug("missing", { releases: [{ game, event }] }), undefined);
+  });
+});
+
+describe("radarReferenceIso", () => {
+  it("uses epoch until the client clock hydrates", () => {
+    assert.equal(radarReferenceIso(null), "1970-01-01T00:00:00.000Z");
+    assert.equal(
+      radarReferenceIso(Date.parse("2026-09-07T12:00:00.000Z")),
+      "2026-09-07T12:00:00.000Z",
+    );
   });
 });

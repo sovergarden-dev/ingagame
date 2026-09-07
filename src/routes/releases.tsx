@@ -7,8 +7,12 @@ import { SectionHeader } from "@/components/gp/SectionHeader";
 import { GameCard } from "@/components/gp/GameCard";
 import { FeedGate } from "@/components/gp/FeedGate";
 import { FreshnessStatus } from "@/components/gp/FreshnessStatus";
-import { freshnessFromFeed, splitReleaseItems } from "@/integrations/content/feed";
-import { useReleasesFeed } from "@/integrations/content/use-content-feed";
+import {
+  freshnessFromFeed,
+  radarReferenceIso,
+  splitReleaseItems,
+} from "@/integrations/content/feed";
+import { feedGateProps, useReleasesFeed } from "@/integrations/content/use-content-feed";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { MessageKey } from "@/i18n/messages";
 import { useLibrary } from "@/library/LibraryProvider";
@@ -16,8 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { ReleaseKind } from "@/domain/types";
-
-const REFERENCE_DATE = "2026-09-03T00:00:00Z";
+import { useNow } from "@/hooks/use-now";
 
 const VIEWS = [
   { id: "rail", labelKey: "views.rail", Icon: Radar },
@@ -51,6 +54,7 @@ export const Route = createFileRoute("/releases")({
 
 function Releases() {
   const { t } = useI18n();
+  const now = useNow();
   const { wishlist, following } = useLibrary();
   const feed = useReleasesFeed();
   const { upcoming, recent } = splitReleaseItems(feed.data?.items ?? []);
@@ -65,7 +69,8 @@ function Releases() {
     if (followedOnly && !following.includes(e.game.id)) return false;
     return true;
   });
-  const freshness = freshnessFromFeed(feed.data, feed.isPending, Date.now());
+  const freshness = freshnessFromFeed(feed.data, feed.isPending, Date.now(), feed.isError);
+  const radarClock = radarReferenceIso(now);
 
   return (
     <div className="space-y-6">
@@ -144,11 +149,11 @@ function Releases() {
         </div>
       </div>
 
-      <FeedGate isPending={feed.isPending} result={feed.data} onRetry={() => void feed.refetch()}>
-        {view === "rail" && <ReleaseRadar entries={entries} referenceDate={REFERENCE_DATE} />}
+      <FeedGate {...feedGateProps(feed)}>
+        {view === "rail" && <ReleaseRadar entries={entries} referenceDate={radarClock} />}
         {view === "timeline" && <TimelineView entries={entries} />}
         {view === "agenda" && <AgendaView entries={entries} />}
-        {view === "month" && <MonthView entries={entries} referenceDate={REFERENCE_DATE} />}
+        {view === "month" && <MonthView entries={entries} referenceDate={radarClock} />}
         {view === "countdown" && <CountdownView entries={entries} />}
 
         {view === "recent" && (

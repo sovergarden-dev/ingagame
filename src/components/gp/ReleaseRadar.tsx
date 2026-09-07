@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { RadarEntry } from "@/domain/mock-data";
+import type { RadarEntry } from "@/domain/types";
 import { dayKey, shortDateLabel, shortDayLabel } from "@/domain/release";
 import { matchesPlatformFilter, PLATFORM_FILTERS, type PlatformFilterId } from "@/domain/platforms";
 import { useI18n } from "@/i18n/I18nProvider";
