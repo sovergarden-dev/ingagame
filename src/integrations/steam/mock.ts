@@ -1,10 +1,13 @@
 /**
  * Mock Steam provider.
  *
- * Shape mirrors what a real Steam Web API adapter would return, so the UI can
- * later switch to a server-backed provider without changing components.
+ * DEV-only. Production must use the server-backed adapter (`client.ts`).
+ * Shape mirrors the public snapshot so Settings can switch without new fields.
  */
 import { GAMES } from "@/domain/mock-data";
+import { SteamConnectError } from "./client";
+
+export { SteamConnectError };
 
 export interface SteamProfile {
   steamId: string;
@@ -26,8 +29,6 @@ export interface SteamLibrarySnapshot {
   wishlistGameIds: string[];
   syncedAt: string;
 }
-
-export class SteamConnectError extends Error {}
 
 function hashString(input: string): number {
   let h = 2166136261;

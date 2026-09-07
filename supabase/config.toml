@@ -4,3 +4,8 @@ project_id = "xtmejuuuqiuqawstptuy"
 # Do not deploy this function to production until named go.
 [functions.content-feed]
 verify_jwt = false
+
+# Steam OpenID callback is an unauthenticated browser redirect from Steam.
+# /start validates the user JWT in-handler. Do not deploy until named go.
+[functions.steam-connect]
+verify_jwt = false

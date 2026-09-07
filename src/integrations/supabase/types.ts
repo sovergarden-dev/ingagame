@@ -56,6 +56,33 @@ export type Database = {
         }
         Relationships: []
       }
+      steam_links: {
+        Row: {
+          avatar_url: string | null
+          connected_at: string
+          persona_name: string | null
+          steam_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          connected_at?: string
+          persona_name?: string | null
+          steam_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          connected_at?: string
+          persona_name?: string | null
+          steam_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       content_items: {
         Row: {
           created_at: string
