@@ -7,7 +7,9 @@ import { CountdownChip } from "@/components/gp/CountdownCard";
 import { GameCardCompact } from "@/components/gp/GameCard";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { EmptyState } from "@/components/gp/EmptyState";
-import { RECENTLY_RELEASED, UPCOMING_RELEASES } from "@/domain/mock-data";
+import { FeedGate } from "@/components/gp/FeedGate";
+import { splitReleaseItems } from "@/integrations/content/feed";
+import { useReleasesFeed } from "@/integrations/content/use-content-feed";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useLibrary } from "@/library/LibraryProvider";
 import { useDealAlerts } from "@/deals/deal-alerts";
@@ -38,14 +40,16 @@ function WatchlistPage() {
   const { t, locale } = useI18n();
   const { wishlist, following } = useLibrary();
   const expiredDeals = useDealAlerts();
+  const releasesFeed = useReleasesFeed();
+  const { upcoming, recent } = splitReleaseItems(releasesFeed.data?.items ?? []);
   const [tab, setTab] = useState<TabId>("all");
 
   const ids =
     tab === "wishlist" ? wishlist : tab === "following" ? following : [...wishlist, ...following];
   const idSet = new Set(ids);
 
-  const tracked = UPCOMING_RELEASES.filter(({ game }) => idSet.has(game.id));
-  const released = RECENTLY_RELEASED.filter(({ game }) => idSet.has(game.id));
+  const tracked = upcoming.filter(({ game }) => idSet.has(game.id));
+  const released = recent.filter(({ game }) => idSet.has(game.id));
 
   return (
     <PageShell
@@ -69,66 +73,72 @@ function WatchlistPage() {
         </>
       }
     >
-      {tracked.length === 0 && released.length === 0 && expiredDeals.length === 0 ? (
-        <EmptyState
-          title={t("watchlist.empty.title")}
-          body={t("watchlist.empty.body")}
-          icon={<Star aria-hidden className="size-5" />}
-          action={
-            <Link
-              to="/releases"
-              className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:opacity-90"
-            >
-              {t("watchlist.browse")}
-            </Link>
-          }
-        />
-      ) : (
-        <div className="space-y-8">
-          {tracked.length > 0 && (
-            <section className="space-y-3">
-              <SectionHeader title={t("watchlist.tab.all")} />
-              <div className="gp-panel grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">
-                {tracked.map(({ game, event }) => (
-                  <CountdownChip key={event.id} game={game} event={event} />
-                ))}
-              </div>
-            </section>
-          )}
+      <FeedGate
+        isPending={releasesFeed.isPending}
+        result={releasesFeed.data}
+        onRetry={() => void releasesFeed.refetch()}
+      >
+        {tracked.length === 0 && released.length === 0 && expiredDeals.length === 0 ? (
+          <EmptyState
+            title={t("watchlist.empty.title")}
+            body={t("watchlist.empty.body")}
+            icon={<Star aria-hidden className="size-5" />}
+            action={
+              <Link
+                to="/releases"
+                className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:opacity-90"
+              >
+                {t("watchlist.browse")}
+              </Link>
+            }
+          />
+        ) : (
+          <div className="space-y-8">
+            {tracked.length > 0 && (
+              <section className="space-y-3">
+                <SectionHeader title={t("watchlist.tab.all")} />
+                <div className="gp-panel grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {tracked.map(({ game, event }) => (
+                    <CountdownChip key={event.id} game={game} event={event} />
+                  ))}
+                </div>
+              </section>
+            )}
 
-          {expiredDeals.length > 0 && (
-            <section className="space-y-3">
-              <SectionHeader title={t("deals.expired")} />
-              <ul className="gp-panel divide-y divide-border p-2">
-                {expiredDeals.map(({ deal, expiredAt }) => (
-                  <li key={deal.id} className="py-1">
-                    <DealCard deal={deal} locale={locale} />
-                    <p className="px-2 pb-1 text-xs text-muted-foreground">
-                      {t("deals.expiredAt", {
-                        date: new Intl.DateTimeFormat(locale, {
-                          dateStyle: "medium",
-                          timeZone: "UTC",
-                        }).format(new Date(expiredAt)),
-                      })}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+            {expiredDeals.length > 0 && (
+              <section className="space-y-3">
+                <SectionHeader title={t("deals.expired")} />
+                <ul className="gp-panel divide-y divide-border p-2">
+                  {expiredDeals.map(({ deal, expiredAt }) => (
+                    <li key={deal.id} className="py-1">
+                      <DealCard deal={deal} locale={locale} />
+                      <p className="px-2 pb-1 text-xs text-muted-foreground">
+                        {t("deals.expiredAt", {
+                          date: new Intl.DateTimeFormat(locale, {
+                            dateStyle: "medium",
+                            timeZone: "UTC",
+                          }).format(new Date(expiredAt)),
+                        })}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
-          {released.length > 0 && (
-            <section className="space-y-3">
-              <SectionHeader title={t("watchlist.released")} />
-              <div className="gp-panel space-y-1 p-4">
-                {released.map(({ game }) => (
-                  <GameCardCompact key={game.id} game={game} />
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
-      )}
+            {released.length > 0 && (
+              <section className="space-y-3">
+                <SectionHeader title={t("watchlist.released")} />
+                <div className="gp-panel space-y-1 p-4">
+                  {released.map(({ game }) => (
+                    <GameCardCompact key={game.id} game={game} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+      </FeedGate>
     </PageShell>
   );
 }

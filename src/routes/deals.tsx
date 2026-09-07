@@ -6,7 +6,9 @@ import { FilterChip, Segmented } from "@/components/gp/FilterChip";
 import { DealCard } from "@/components/gp/DealCard";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { EmptyState } from "@/components/gp/EmptyState";
-import { DEALS } from "@/domain/mock-data";
+import { FeedGate } from "@/components/gp/FeedGate";
+import { freshnessFromFeed } from "@/integrations/content/feed";
+import { useDealsFeed } from "@/integrations/content/use-content-feed";
 import { isDealExpired } from "@/domain/deal";
 import { countdownFrom } from "@/domain/release";
 import { useNow } from "@/hooks/use-now";
@@ -68,22 +70,25 @@ function sortDeals(deals: Deal[], sort: SortId) {
 
 function DealsPage() {
   const { t, locale } = useI18n();
+  const feed = useDealsFeed();
+  const deals = useMemo(() => feed.data?.items ?? [], [feed.data?.items]);
   const [sort, setSort] = useState<SortId>("discount");
   const [stores, setStores] = useState<string[]>([]);
 
-  const allStores = useMemo(() => [...new Set(DEALS.map((d) => d.store))].sort(), []);
+  const allStores = useMemo(() => [...new Set(deals.map((d) => d.store))].sort(), [deals]);
   const filtered = useMemo(
-    () => sortDeals(stores.length ? DEALS.filter((d) => stores.includes(d.store)) : DEALS, sort),
-    [sort, stores],
+    () => sortDeals(stores.length ? deals.filter((d) => stores.includes(d.store)) : deals, sort),
+    [deals, sort, stores],
   );
   const featured = filtered.slice(0, 3);
   const rest = filtered.slice(3);
+  const freshness = freshnessFromFeed(feed.data, feed.isPending, Date.now());
 
   return (
     <PageShell
       title={t("page.deals.title")}
       description={t("page.deals.subtitle")}
-      freshness={{ state: "fresh", minutesAgo: 4 }}
+      freshness={freshness}
       toolbar={
         <>
           <Segmented<SortId>
@@ -118,44 +123,46 @@ function DealsPage() {
         </>
       }
     >
-      {featured.length ? (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-          <section className="space-y-3">
-            <SectionHeader title={t("deals.featured")} />
-            <div className="space-y-4">
-              {featured.map((deal) => (
-                <div key={deal.id} className="space-y-2">
-                  <DealCard deal={deal} locale={locale} featured />
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-xs text-muted-foreground">{deal.store}</span>
-                    <EndsIn {...(deal.endsAt ? { endsAt: deal.endsAt } : {})} />
+      <FeedGate isPending={feed.isPending} result={feed.data} onRetry={() => void feed.refetch()}>
+        {featured.length ? (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+            <section className="space-y-3">
+              <SectionHeader title={t("deals.featured")} />
+              <div className="space-y-4">
+                {featured.map((deal) => (
+                  <div key={deal.id} className="space-y-2">
+                    <DealCard deal={deal} locale={locale} featured />
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-xs text-muted-foreground">{deal.store}</span>
+                      <EndsIn {...(deal.endsAt ? { endsAt: deal.endsAt } : {})} />
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
 
-          <section className="space-y-3">
-            <SectionHeader title={t("deals.all")} />
-            <ul className="gp-panel divide-y divide-border p-2">
-              {rest.map((deal) => (
-                <li key={deal.id} className="py-1">
-                  <DealCard deal={deal} locale={locale} />
-                  <div className="px-2 pb-1">
-                    <EndsIn {...(deal.endsAt ? { endsAt: deal.endsAt } : {})} />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
-      ) : (
-        <EmptyState
-          title={t("common.noResults")}
-          body={t("common.reset")}
-          icon={<Tag aria-hidden className="size-5" />}
-        />
-      )}
+            <section className="space-y-3">
+              <SectionHeader title={t("deals.all")} />
+              <ul className="gp-panel divide-y divide-border p-2">
+                {rest.map((deal) => (
+                  <li key={deal.id} className="py-1">
+                    <DealCard deal={deal} locale={locale} />
+                    <div className="px-2 pb-1">
+                      <EndsIn {...(deal.endsAt ? { endsAt: deal.endsAt } : {})} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
+        ) : (
+          <EmptyState
+            title={t("common.noResults")}
+            body={t("common.reset")}
+            icon={<Tag aria-hidden className="size-5" />}
+          />
+        )}
+      </FeedGate>
     </PageShell>
   );
 }

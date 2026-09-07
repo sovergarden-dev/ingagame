@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { CalendarPlus, PlayCircle, Star } from "lucide-react";
-import { DEALS, GAMES, GAMES_BY_SLUG, LAUNCH_WAVE, ARTICLES, VIDEOS } from "@/domain/mock-data";
+import { GAMES, GAMES_BY_SLUG, LAUNCH_WAVE, VIDEOS } from "@/domain/mock-data";
+import { useDealsFeed, useNewsFeed } from "@/integrations/content/use-content-feed";
 import { formatReleaseDate, isCountdownable } from "@/domain/release";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { GlobalLaunchWave } from "@/components/gp/GlobalLaunchWave";
 import { GameCard } from "@/components/gp/GameCard";
 import { DealCard } from "@/components/gp/DealCard";
 import { EmptyState } from "@/components/gp/EmptyState";
+import { FeedGate } from "@/components/gp/FeedGate";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useLibrary } from "@/library/LibraryProvider";
@@ -50,9 +52,11 @@ function GameDetail() {
   const { t, locale } = useI18n();
   const { isFollowing, toggleFollow } = useLibrary();
   const game = GAMES_BY_SLUG.get(slug)!;
+  const dealsFeed = useDealsFeed();
+  const newsFeed = useNewsFeed();
   const primary = game.releaseEvents[0]!;
-  const deals = DEALS.filter((d) => d.gameId === game.id);
-  const news = ARTICLES.filter((a) => a.gameId === game.id);
+  const deals = (dealsFeed.data?.items ?? []).filter((d) => d.gameId === game.id);
+  const news = (newsFeed.data?.items ?? []).filter((a) => a.gameId === game.id);
   const videos = VIDEOS.filter((v) => v.gameId === game.id);
   const similar = GAMES.filter(
     (g) => g.id !== game.id && g.genres.some((genre) => game.genres.includes(genre)),
@@ -197,30 +201,42 @@ function GameDetail() {
         </TabsContent>
 
         <TabsContent value="deals" className="mt-4">
-          {deals.length ? (
-            <div className="gp-panel space-y-1 p-4">
-              {deals.map((deal) => (
-                <DealCard key={deal.id} deal={deal} locale={locale} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState title={t("empty.title")} body={t("empty.body")} />
-          )}
+          <FeedGate
+            isPending={dealsFeed.isPending}
+            result={dealsFeed.data}
+            onRetry={() => void dealsFeed.refetch()}
+          >
+            {deals.length ? (
+              <div className="gp-panel space-y-1 p-4">
+                {deals.map((deal) => (
+                  <DealCard key={deal.id} deal={deal} locale={locale} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState title={t("empty.title")} body={t("empty.body")} />
+            )}
+          </FeedGate>
         </TabsContent>
 
         <TabsContent value="news" className="mt-4">
-          {news.length ? (
-            <ul className="gp-panel divide-y divide-border p-4">
-              {news.map((a) => (
-                <li key={a.id} className="py-3">
-                  <p className="text-sm font-medium text-foreground">{a.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{a.source}</p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState title={t("empty.title")} body={t("empty.body")} />
-          )}
+          <FeedGate
+            isPending={newsFeed.isPending}
+            result={newsFeed.data}
+            onRetry={() => void newsFeed.refetch()}
+          >
+            {news.length ? (
+              <ul className="gp-panel divide-y divide-border p-4">
+                {news.map((a) => (
+                  <li key={a.id} className="py-3">
+                    <p className="text-sm font-medium text-foreground">{a.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{a.source}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState title={t("empty.title")} body={t("empty.body")} />
+            )}
+          </FeedGate>
         </TabsContent>
 
         <TabsContent value="trailers" className="mt-4">

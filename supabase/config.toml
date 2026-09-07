@@ -1,1 +1,6 @@
 project_id = "xtmejuuuqiuqawstptuy"
+
+# Public catalogue. Auth is not required; the function uses service_role SELECT.
+# Do not deploy this function to production until named go.
+[functions.content-feed]
+verify_jwt = false

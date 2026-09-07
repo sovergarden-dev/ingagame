@@ -116,6 +116,13 @@ export const en = {
   "empty.title": "Nothing here yet",
   "empty.body": "Once this section has data, it will show up right here.",
 
+  "feed.empty.title": "Catalogue is empty",
+  "feed.empty.body":
+    "Releases, deals and news come from the server feed. Nothing is published yet.",
+  "feed.error.title": "Couldn't load this feed",
+  "feed.error.body": "The catalogue is temporarily unavailable. Try again in a moment.",
+  "feed.error.retry": "Try again",
+
   "views.rail": "Rail",
   "views.timeline": "Timeline",
   "views.agenda": "Agenda",
@@ -314,6 +321,11 @@ const vi: Partial<Record<MessageKey, string>> = {
   "watchlist.empty.title": "Chưa theo dõi game nào",
   "watchlist.empty.body": "Thêm yêu thích hoặc theo dõi một game để hiện ở đây.",
   "watchlist.browse": "Xem lịch phát hành",
+  "feed.empty.title": "Chưa có mục nào",
+  "feed.empty.body": "Lịch phát hành, ưu đãi và tin tức đến từ máy chủ. Hiện chưa có mục nào.",
+  "feed.error.title": "Không tải được mục này",
+  "feed.error.body": "Catalogue tạm thời không khả dụng. Thử lại sau một lúc.",
+  "feed.error.retry": "Thử lại",
   "common.reset": "Xoá bộ lọc",
   "common.noResults": "Không có kết quả phù hợp.",
   "auth.title": "Đăng nhập Inga",

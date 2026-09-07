@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import type { Deal } from "@/domain/types";
-import { getGame } from "@/domain/mock-data";
 import { isDealExpired } from "@/domain/deal";
 import { useNow } from "@/hooks/use-now";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -21,13 +20,39 @@ export function DealCard({
   featured?: boolean;
   className?: string;
 }) {
-  const game = getGame(deal.gameId);
+  const game = deal.game;
   const now = useNow();
   const { t } = useI18n();
-  if (!game) return null;
-
   const expired = isDealExpired(deal.endsAt, now);
   const discountLabel = expired ? t("deals.alert.title") : `-${deal.discountPercent}%`;
+
+  if (!game) {
+    return (
+      <div
+        className={cn(
+          "flex min-h-14 items-center gap-3 rounded-lg border border-transparent p-2",
+          expired && "opacity-80",
+          className,
+        )}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">{deal.store}</p>
+          <p className="truncate text-xs text-muted-foreground">{deal.gameId}</p>
+        </div>
+        <span
+          className={cn(
+            "rounded-md px-1.5 py-0.5 text-xs font-semibold",
+            expired ? "bg-destructive/15 text-destructive" : "bg-success/15 text-success",
+          )}
+        >
+          {discountLabel}
+        </span>
+        <span className="w-[68px] shrink-0 text-right text-sm font-semibold text-foreground">
+          {money(deal.priceCurrent, deal.currency, locale)}
+        </span>
+      </div>
+    );
+  }
 
   if (featured) {
     return (

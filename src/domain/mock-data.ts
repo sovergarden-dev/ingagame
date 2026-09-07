@@ -8,7 +8,18 @@ import cover7 from "@/assets/cover-7.jpg";
 import cover8 from "@/assets/cover-8.jpg";
 import heroBackdrop from "@/assets/hero-aetherfall.jpg";
 
-import type { Article, Deal, Game, Giveaway, RegionLaunch, ReleaseEvent, Video } from "./types";
+import type {
+  Article,
+  Deal,
+  Game,
+  Giveaway,
+  RadarEntry,
+  RegionLaunch,
+  ReleaseEvent,
+  Video,
+} from "./types";
+
+export type { RadarEntry };
 
 export const HERO_BACKDROP = heroBackdrop;
 
@@ -365,11 +376,6 @@ export function getGame(id: string) {
 
 export const FEATURED_GAME = GAMES[0]!;
 export const FEATURED_RELEASE = FEATURED_GAME.releaseEvents[0]!;
-
-export interface RadarEntry {
-  game: Game;
-  event: ReleaseEvent;
-}
 
 /** Flat, date-sorted list of upcoming release events for the radar rail. */
 export const UPCOMING_RELEASES: RadarEntry[] = GAMES.flatMap((game) =>
