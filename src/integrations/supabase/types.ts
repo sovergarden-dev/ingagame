@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      content_items: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          payload: Json
+          published_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          payload?: Json
+          published_at: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          payload?: Json
+          published_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -29,30 +53,6 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
-        }
-        Relationships: []
-      }
-      watchlist_items: {
-        Row: {
-          created_at: string
-          game_id: string
-          id: string
-          kind: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          game_id: string
-          id?: string
-          kind: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          game_id?: string
-          id?: string
-          kind?: string
-          user_id?: string
         }
         Relationships: []
       }
@@ -83,27 +83,27 @@ export type Database = {
         }
         Relationships: []
       }
-      content_items: {
+      watchlist_items: {
         Row: {
           created_at: string
+          game_id: string
           id: string
           kind: string
-          payload: Json
-          published_at: string
+          user_id: string
         }
         Insert: {
           created_at?: string
+          game_id: string
           id?: string
           kind: string
-          payload?: Json
-          published_at: string
+          user_id: string
         }
         Update: {
           created_at?: string
+          game_id?: string
           id?: string
           kind?: string
-          payload?: Json
-          published_at?: string
+          user_id?: string
         }
         Relationships: []
       }
