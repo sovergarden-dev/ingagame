@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      content_items: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          payload: Json
+          published_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          payload?: Json
+          published_at: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          payload?: Json
+          published_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -53,30 +77,6 @@ export type Database = {
           id?: string
           kind?: string
           user_id?: string
-        }
-        Relationships: []
-      }
-      content_items: {
-        Row: {
-          created_at: string
-          id: string
-          kind: string
-          payload: Json
-          published_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          kind: string
-          payload?: Json
-          published_at: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          kind?: string
-          payload?: Json
-          published_at?: string
         }
         Relationships: []
       }
