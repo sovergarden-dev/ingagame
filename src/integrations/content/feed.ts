@@ -1,4 +1,13 @@
-import type { Article, Deal, FreshnessStatus, RadarEntry } from "@/domain/types";
+import { PLATFORMS } from "../../domain/platforms.ts";
+import type {
+  Article,
+  Deal,
+  FreshnessStatus,
+  Game,
+  PlatformId,
+  RadarEntry,
+  ReleaseEvent,
+} from "../../domain/types.ts";
 
 export type ContentKind = "releases" | "deals" | "news";
 
@@ -128,40 +137,165 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-export function isRadarEntry(value: unknown): value is RadarEntry {
-  if (!isRecord(value) || !isRecord(value.game) || !isRecord(value.event)) return false;
-  const { game, event } = value;
+const PRECISIONS: ReadonlySet<string> = new Set([
+  "exact",
+  "date",
+  "month",
+  "quarter",
+  "year",
+  "tba",
+]);
+const CONFIDENCES: ReadonlySet<string> = new Set([
+  "confirmed",
+  "high",
+  "expected",
+  "unconfirmed",
+  "tba",
+]);
+const KINDS: ReadonlySet<string> = new Set([
+  "full",
+  "early-access",
+  "dlc",
+  "expansion",
+  "demo",
+  "beta",
+]);
+const STATES: ReadonlySet<string> = new Set(["upcoming", "available", "delayed"]);
+
+export function isPlatformId(value: unknown): value is PlatformId {
+  return typeof value === "string" && value in PLATFORMS;
+}
+
+function isPlatformIdList(value: unknown): value is PlatformId[] {
+  return Array.isArray(value) && value.every(isPlatformId);
+}
+
+export function isReleaseEvent(value: unknown): value is ReleaseEvent {
+  if (!isRecord(value)) return false;
   return (
-    typeof game.id === "string" &&
-    typeof game.slug === "string" &&
-    typeof game.title === "string" &&
-    typeof event.id === "string" &&
-    typeof event.state === "string" &&
-    Array.isArray(event.platforms)
+    typeof value.id === "string" &&
+    typeof value.gameId === "string" &&
+    typeof value.date === "string" &&
+    value.date.length >= 10 &&
+    !Number.isNaN(Date.parse(value.date)) &&
+    PRECISIONS.has(value.precision as string) &&
+    CONFIDENCES.has(value.confidence as string) &&
+    KINDS.has(value.kind as string) &&
+    STATES.has(value.state as string) &&
+    isPlatformIdList(value.platforms)
   );
+}
+
+export function isGameSnapshot(value: unknown): value is Game {
+  if (!isRecord(value)) return false;
+  if (
+    typeof value.id !== "string" ||
+    typeof value.slug !== "string" ||
+    typeof value.title !== "string" ||
+    typeof value.coverUrl !== "string" ||
+    typeof value.developer !== "string" ||
+    typeof value.publisher !== "string" ||
+    typeof value.summary !== "string"
+  ) {
+    return false;
+  }
+  if (!isPlatformIdList(value.platforms)) return false;
+  if (!Array.isArray(value.genres) || !value.genres.every((g) => typeof g === "string")) {
+    return false;
+  }
+  if (!Array.isArray(value.releaseEvents) || !value.releaseEvents.every(isReleaseEvent)) {
+    return false;
+  }
+  if (value.backdropUrl != null && typeof value.backdropUrl !== "string") return false;
+  if (value.originalTitle != null && typeof value.originalTitle !== "string") return false;
+  return true;
+}
+
+export function isRadarEntry(value: unknown): value is RadarEntry {
+  if (!isRecord(value)) return false;
+  return isGameSnapshot(value.game) && isReleaseEvent(value.event);
 }
 
 export function isDealItem(value: unknown): value is Deal {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.gameId === "string" &&
-    typeof value.store === "string" &&
-    typeof value.priceCurrent === "number" &&
-    typeof value.priceBase === "number" &&
-    typeof value.discountPercent === "number" &&
-    typeof value.currency === "string"
-  );
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.gameId !== "string" ||
+    typeof value.store !== "string" ||
+    typeof value.priceCurrent !== "number" ||
+    typeof value.priceBase !== "number" ||
+    typeof value.discountPercent !== "number" ||
+    typeof value.currency !== "string"
+  ) {
+    return false;
+  }
+  if (value.game != null && !isGameSnapshot(value.game)) return false;
+  return true;
 }
 
 export function isArticleItem(value: unknown): value is Article {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.title === "string" &&
-    typeof value.source === "string" &&
-    typeof value.publishedAt === "string"
-  );
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.title !== "string" ||
+    typeof value.source !== "string" ||
+    typeof value.publishedAt !== "string"
+  ) {
+    return false;
+  }
+  if (value.game != null && !isGameSnapshot(value.game)) return false;
+  return true;
+}
+
+/** Empty-error results throw so React Query keeps the last successful payload. */
+export class FeedUnavailableError extends Error {
+  constructor() {
+    super("feed_unavailable");
+    this.name = "FeedUnavailableError";
+  }
+}
+
+export function requireFeedSuccess<T>(result: ContentFeedResult<T>): ContentFeedResult<T> {
+  if (result.status === "error" && result.items.length === 0) {
+    throw new FeedUnavailableError();
+  }
+  return result;
+}
+
+export function findGameBySlug(
+  slug: string,
+  sources: {
+    releases?: RadarEntry[];
+    deals?: Deal[];
+    news?: Article[];
+  },
+): Game | undefined {
+  for (const entry of sources.releases ?? []) {
+    if (entry.game.slug === slug) return entry.game;
+  }
+  for (const deal of sources.deals ?? []) {
+    if (deal.game?.slug === slug) return deal.game;
+  }
+  for (const article of sources.news ?? []) {
+    if (article.game?.slug === slug) return article.game;
+  }
+  return undefined;
+}
+
+export function uniqueGamesFromReleases(entries: RadarEntry[]): Game[] {
+  const seen = new Set<string>();
+  const games: Game[] = [];
+  for (const { game } of entries) {
+    if (seen.has(game.id)) continue;
+    seen.add(game.id);
+    games.push(game);
+  }
+  return games;
+}
+
+/** Stable ISO clock for radar "today" — epoch until `useNow` hydrates (no SSR mismatch). */
+export function radarReferenceIso(nowMs: number | null): string {
+  return nowMs == null ? "1970-01-01T00:00:00.000Z" : new Date(nowMs).toISOString();
 }
 
 export function selectReleaseItems(items: unknown[]): RadarEntry[] {
@@ -236,12 +370,12 @@ export function freshnessFromFeed(
   result: ContentFeedResult<unknown> | undefined,
   isPending: boolean,
   nowMs: number,
+  isError = false,
 ): FreshnessStatus {
   if (isPending) return { state: "refreshing", minutesAgo: 0 };
-  if (!result?.fetchedAt) return { state: "stale", minutesAgo: 0 };
-  const then = Date.parse(result.fetchedAt);
+  const then = result?.fetchedAt ? Date.parse(result.fetchedAt) : Number.NaN;
   const minutesAgo = Number.isNaN(then) ? 0 : Math.max(0, Math.round((nowMs - then) / 60_000));
-  if (result.status === "error" || result.source === "mock") {
+  if (isError || result?.status === "error" || result?.source === "mock" || !result?.fetchedAt) {
     return { state: "stale", minutesAgo };
   }
   if (minutesAgo <= 5) return { state: "fresh", minutesAgo };

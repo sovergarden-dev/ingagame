@@ -8,7 +8,7 @@ import { SectionHeader } from "@/components/gp/SectionHeader";
 import { EmptyState } from "@/components/gp/EmptyState";
 import { FeedGate } from "@/components/gp/FeedGate";
 import { freshnessFromFeed } from "@/integrations/content/feed";
-import { useDealsFeed } from "@/integrations/content/use-content-feed";
+import { feedGateProps, useDealsFeed } from "@/integrations/content/use-content-feed";
 import { isDealExpired } from "@/domain/deal";
 import { countdownFrom } from "@/domain/release";
 import { useNow } from "@/hooks/use-now";
@@ -82,7 +82,7 @@ function DealsPage() {
   );
   const featured = filtered.slice(0, 3);
   const rest = filtered.slice(3);
-  const freshness = freshnessFromFeed(feed.data, feed.isPending, Date.now());
+  const freshness = freshnessFromFeed(feed.data, feed.isPending, Date.now(), feed.isError);
 
   return (
     <PageShell
@@ -123,7 +123,7 @@ function DealsPage() {
         </>
       }
     >
-      <FeedGate isPending={feed.isPending} result={feed.data} onRetry={() => void feed.refetch()}>
+      <FeedGate {...feedGateProps(feed)}>
         {featured.length ? (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
             <section className="space-y-3">

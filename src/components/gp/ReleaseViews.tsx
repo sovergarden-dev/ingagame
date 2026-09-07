@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { RadarEntry } from "@/domain/mock-data";
+import type { RadarEntry } from "@/domain/types";
 import { dayKey, formatReleaseDate, isCountdownable, shortDayLabel } from "@/domain/release";
 import { useI18n } from "@/i18n/I18nProvider";
 import { PlatformBadgeList } from "./PlatformBadge";
