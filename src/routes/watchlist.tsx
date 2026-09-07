@@ -7,7 +7,9 @@ import { CountdownChip } from "@/components/gp/CountdownCard";
 import { GameCardCompact } from "@/components/gp/GameCard";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { EmptyState } from "@/components/gp/EmptyState";
-import { RECENTLY_RELEASED, UPCOMING_RELEASES } from "@/domain/mock-data";
+import { PanelSkeleton } from "@/components/gp/Skeletons";
+import { splitReleaseItems } from "@/integrations/content/feed";
+import { useReleasesFeed } from "@/integrations/content/use-content-feed";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useLibrary } from "@/library/LibraryProvider";
 import { useDealAlerts } from "@/deals/deal-alerts";
@@ -38,14 +40,16 @@ function WatchlistPage() {
   const { t, locale } = useI18n();
   const { wishlist, following } = useLibrary();
   const expiredDeals = useDealAlerts();
+  const releasesFeed = useReleasesFeed();
+  const { upcoming, recent } = splitReleaseItems(releasesFeed.data?.items ?? []);
   const [tab, setTab] = useState<TabId>("all");
 
   const ids =
     tab === "wishlist" ? wishlist : tab === "following" ? following : [...wishlist, ...following];
   const idSet = new Set(ids);
 
-  const tracked = UPCOMING_RELEASES.filter(({ game }) => idSet.has(game.id));
-  const released = RECENTLY_RELEASED.filter(({ game }) => idSet.has(game.id));
+  const tracked = upcoming.filter(({ game }) => idSet.has(game.id));
+  const released = recent.filter(({ game }) => idSet.has(game.id));
 
   return (
     <PageShell
@@ -69,7 +73,9 @@ function WatchlistPage() {
         </>
       }
     >
-      {tracked.length === 0 && released.length === 0 && expiredDeals.length === 0 ? (
+      {releasesFeed.isPending ? (
+        <PanelSkeleton rows={4} />
+      ) : tracked.length === 0 && released.length === 0 && expiredDeals.length === 0 ? (
         <EmptyState
           title={t("watchlist.empty.title")}
           body={t("watchlist.empty.body")}

@@ -21,7 +21,7 @@ export function DealCard({
   featured?: boolean;
   className?: string;
 }) {
-  const game = getGame(deal.gameId);
+  const game = deal.game ?? getGame(deal.gameId);
   const now = useNow();
   const { t } = useI18n();
   if (!game) return null;

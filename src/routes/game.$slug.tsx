@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { CalendarPlus, PlayCircle, Star } from "lucide-react";
-import { DEALS, GAMES, GAMES_BY_SLUG, LAUNCH_WAVE, ARTICLES, VIDEOS } from "@/domain/mock-data";
+import { GAMES, GAMES_BY_SLUG, LAUNCH_WAVE, VIDEOS } from "@/domain/mock-data";
+import { useDealsFeed, useNewsFeed } from "@/integrations/content/use-content-feed";
 import { formatReleaseDate, isCountdownable } from "@/domain/release";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -50,9 +51,11 @@ function GameDetail() {
   const { t, locale } = useI18n();
   const { isFollowing, toggleFollow } = useLibrary();
   const game = GAMES_BY_SLUG.get(slug)!;
+  const dealsFeed = useDealsFeed();
+  const newsFeed = useNewsFeed();
   const primary = game.releaseEvents[0]!;
-  const deals = DEALS.filter((d) => d.gameId === game.id);
-  const news = ARTICLES.filter((a) => a.gameId === game.id);
+  const deals = (dealsFeed.data?.items ?? []).filter((d) => d.gameId === game.id);
+  const news = (newsFeed.data?.items ?? []).filter((a) => a.gameId === game.id);
   const videos = VIDEOS.filter((v) => v.gameId === game.id);
   const similar = GAMES.filter(
     (g) => g.id !== game.id && g.genres.some((genre) => game.genres.includes(genre)),

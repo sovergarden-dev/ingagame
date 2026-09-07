@@ -5,9 +5,10 @@ import { ReleaseRadar } from "@/components/gp/ReleaseRadar";
 import { AgendaView, CountdownView, MonthView, TimelineView } from "@/components/gp/ReleaseViews";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { GameCard } from "@/components/gp/GameCard";
-import { EmptyState } from "@/components/gp/EmptyState";
+import { FeedGate } from "@/components/gp/FeedGate";
 import { FreshnessStatus } from "@/components/gp/FreshnessStatus";
-import { RECENTLY_RELEASED, UPCOMING_RELEASES } from "@/domain/mock-data";
+import { freshnessFromFeed, splitReleaseItems } from "@/integrations/content/feed";
+import { useReleasesFeed } from "@/integrations/content/use-content-feed";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { MessageKey } from "@/i18n/messages";
 import { useLibrary } from "@/library/LibraryProvider";
@@ -51,17 +52,20 @@ export const Route = createFileRoute("/releases")({
 function Releases() {
   const { t } = useI18n();
   const { wishlist, following } = useLibrary();
+  const feed = useReleasesFeed();
+  const { upcoming, recent } = splitReleaseItems(feed.data?.items ?? []);
   const [view, setView] = useState<(typeof VIEWS)[number]["id"]>("rail");
   const [kinds, setKinds] = useState<ReleaseKind[]>([]);
   const [wishlistOnly, setWishlistOnly] = useState(false);
   const [followedOnly, setFollowedOnly] = useState(false);
 
-  const entries = UPCOMING_RELEASES.filter((e) => {
+  const entries = upcoming.filter((e) => {
     if (kinds.length && !kinds.includes(e.event.kind)) return false;
     if (wishlistOnly && !wishlist.includes(e.game.id)) return false;
     if (followedOnly && !following.includes(e.game.id)) return false;
     return true;
   });
+  const freshness = freshnessFromFeed(feed.data, feed.isPending, Date.now());
 
   return (
     <div className="space-y-6">
@@ -72,7 +76,7 @@ function Releases() {
           description={t("radar.subtitle")}
           size="lg"
         />
-        <FreshnessStatus status={{ state: "stale", minutesAgo: 12 }} />
+        <FreshnessStatus status={freshness} />
       </div>
 
       <div className="gp-panel flex flex-wrap items-center gap-4 p-3">
@@ -140,22 +144,24 @@ function Releases() {
         </div>
       </div>
 
-      {view === "rail" && <ReleaseRadar entries={entries} referenceDate={REFERENCE_DATE} />}
-      {view === "timeline" && <TimelineView entries={entries} />}
-      {view === "agenda" && <AgendaView entries={entries} />}
-      {view === "month" && <MonthView entries={entries} referenceDate={REFERENCE_DATE} />}
-      {view === "countdown" && <CountdownView entries={entries} />}
+      <FeedGate isPending={feed.isPending} result={feed.data} onRetry={() => void feed.refetch()}>
+        {view === "rail" && <ReleaseRadar entries={entries} referenceDate={REFERENCE_DATE} />}
+        {view === "timeline" && <TimelineView entries={entries} />}
+        {view === "agenda" && <AgendaView entries={entries} />}
+        {view === "month" && <MonthView entries={entries} referenceDate={REFERENCE_DATE} />}
+        {view === "countdown" && <CountdownView entries={entries} />}
 
-      {view === "recent" && (
-        <section>
-          <SectionHeader title={t("views.recent")} />
-          <div className="gp-scroll-x mt-3 flex gap-3 pb-2">
-            {RECENTLY_RELEASED.map(({ game }) => (
-              <GameCard key={game.id} game={game} />
-            ))}
-          </div>
-        </section>
-      )}
+        {view === "recent" && (
+          <section>
+            <SectionHeader title={t("views.recent")} />
+            <div className="gp-scroll-x mt-3 flex gap-3 pb-2">
+              {recent.map(({ game }) => (
+                <GameCard key={game.id} game={game} />
+              ))}
+            </div>
+          </section>
+        )}
+      </FeedGate>
     </div>
   );
 }

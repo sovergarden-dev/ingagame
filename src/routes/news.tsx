@@ -4,7 +4,10 @@ import { Newspaper } from "lucide-react";
 import { PageShell } from "@/components/gp/PageShell";
 import { FilterChip } from "@/components/gp/FilterChip";
 import { EmptyState } from "@/components/gp/EmptyState";
-import { ARTICLES, getGame } from "@/domain/mock-data";
+import { FeedGate } from "@/components/gp/FeedGate";
+import { getGame } from "@/domain/mock-data";
+import { freshnessFromFeed } from "@/integrations/content/feed";
+import { useNewsFeed } from "@/integrations/content/use-content-feed";
 import { useI18n } from "@/i18n/I18nProvider";
 
 export const Route = createFileRoute("/news")({
@@ -25,13 +28,21 @@ export const Route = createFileRoute("/news")({
 
 function NewsPage() {
   const { t, locale } = useI18n();
+  const feed = useNewsFeed();
+  const articlesFeed = useMemo(() => feed.data?.items ?? [], [feed.data?.items]);
   const [sources, setSources] = useState<string[]>([]);
 
-  const allSources = useMemo(() => [...new Set(ARTICLES.map((a) => a.source))].sort(), []);
+  const allSources = useMemo(
+    () => [...new Set(articlesFeed.map((a) => a.source))].sort(),
+    [articlesFeed],
+  );
   const articles = useMemo(() => {
-    const list = sources.length ? ARTICLES.filter((a) => sources.includes(a.source)) : ARTICLES;
+    const list = sources.length
+      ? articlesFeed.filter((a) => sources.includes(a.source))
+      : articlesFeed;
     return [...list].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
-  }, [sources]);
+  }, [articlesFeed, sources]);
+  const freshness = freshnessFromFeed(feed.data, feed.isPending, Date.now());
 
   const fmt = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
@@ -44,7 +55,7 @@ function NewsPage() {
     <PageShell
       title={t("page.news.title")}
       description={t("page.news.subtitle")}
-      freshness={{ state: "fresh", minutesAgo: 6 }}
+      freshness={freshness}
       toolbar={
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="gp-eyebrow mr-1">{t("news.source")}</span>
@@ -73,85 +84,87 @@ function NewsPage() {
         </div>
       }
     >
-      {!lead ? (
-        <EmptyState
-          title={t("common.noResults")}
-          icon={<Newspaper aria-hidden className="size-5" />}
-        />
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-          <article className="gp-panel overflow-hidden">
-            {(() => {
-              const game = lead.gameId ? getGame(lead.gameId) : undefined;
-              return (
-                <>
-                  {game && (
-                    <img
-                      src={game.backdropUrl ?? game.coverUrl}
-                      alt=""
-                      loading="lazy"
-                      className="h-48 w-full object-cover sm:h-64"
-                    />
-                  )}
-                  <div className="space-y-2 p-5">
-                    <p className="gp-eyebrow">{t("news.latest")}</p>
-                    <h2 className="text-xl font-semibold leading-snug text-foreground">
-                      {lead.title}
-                    </h2>
-                    <p className="text-xs text-muted-foreground">
-                      {lead.source} · {fmt.format(new Date(lead.publishedAt))}
-                    </p>
+      <FeedGate isPending={feed.isPending} result={feed.data} onRetry={() => void feed.refetch()}>
+        {!lead ? (
+          <EmptyState
+            title={t("common.noResults")}
+            icon={<Newspaper aria-hidden className="size-5" />}
+          />
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+            <article className="gp-panel overflow-hidden">
+              {(() => {
+                const game = lead.game ?? (lead.gameId ? getGame(lead.gameId) : undefined);
+                return (
+                  <>
                     {game && (
-                      <Link
-                        to="/game/$slug"
-                        params={{ slug: game.slug }}
-                        className="inline-flex text-xs font-medium text-accent hover:underline"
-                      >
-                        {t("news.related")}: {game.title}
-                      </Link>
+                      <img
+                        src={game.backdropUrl ?? game.coverUrl}
+                        alt=""
+                        loading="lazy"
+                        className="h-48 w-full object-cover sm:h-64"
+                      />
                     )}
-                  </div>
-                </>
-              );
-            })()}
-          </article>
+                    <div className="space-y-2 p-5">
+                      <p className="gp-eyebrow">{t("news.latest")}</p>
+                      <h2 className="text-xl font-semibold leading-snug text-foreground">
+                        {lead.title}
+                      </h2>
+                      <p className="text-xs text-muted-foreground">
+                        {lead.source} · {fmt.format(new Date(lead.publishedAt))}
+                      </p>
+                      {game && (
+                        <Link
+                          to="/game/$slug"
+                          params={{ slug: game.slug }}
+                          className="inline-flex text-xs font-medium text-accent hover:underline"
+                        >
+                          {t("news.related")}: {game.title}
+                        </Link>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </article>
 
-          <ul className="gp-panel divide-y divide-border p-2">
-            {others.map((a) => {
-              const game = a.gameId ? getGame(a.gameId) : undefined;
-              return (
-                <li key={a.id} className="flex gap-3 p-3">
-                  {game && (
-                    <img
-                      src={game.coverUrl}
-                      alt=""
-                      loading="lazy"
-                      className="size-14 shrink-0 rounded-md border border-border object-cover"
-                    />
-                  )}
-                  <div className="min-w-0">
-                    <p className="line-clamp-2 text-sm font-medium leading-snug text-foreground">
-                      {a.title}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {a.source} · {fmt.format(new Date(a.publishedAt))}
-                    </p>
+            <ul className="gp-panel divide-y divide-border p-2">
+              {others.map((a) => {
+                const game = a.game ?? (a.gameId ? getGame(a.gameId) : undefined);
+                return (
+                  <li key={a.id} className="flex gap-3 p-3">
                     {game && (
-                      <Link
-                        to="/game/$slug"
-                        params={{ slug: game.slug }}
-                        className="mt-1 inline-flex text-[11px] font-medium text-accent hover:underline"
-                      >
-                        {game.title}
-                      </Link>
+                      <img
+                        src={game.coverUrl}
+                        alt=""
+                        loading="lazy"
+                        className="size-14 shrink-0 rounded-md border border-border object-cover"
+                      />
                     )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+                    <div className="min-w-0">
+                      <p className="line-clamp-2 text-sm font-medium leading-snug text-foreground">
+                        {a.title}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {a.source} · {fmt.format(new Date(a.publishedAt))}
+                      </p>
+                      {game && (
+                        <Link
+                          to="/game/$slug"
+                          params={{ slug: game.slug }}
+                          className="mt-1 inline-flex text-[11px] font-medium text-accent hover:underline"
+                        >
+                          {game.title}
+                        </Link>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </FeedGate>
     </PageShell>
   );
 }

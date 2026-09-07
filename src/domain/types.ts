@@ -64,6 +64,11 @@ export interface Game {
   criticScore?: number;
 }
 
+export interface RadarEntry {
+  game: Game;
+  event: ReleaseEvent;
+}
+
 export interface Deal {
   id: string;
   gameId: string;
@@ -74,6 +79,8 @@ export interface Deal {
   currency: string;
   endsAt?: string;
   url?: string;
+  /** Denormalized catalogue snapshot from content-feed when present. */
+  game?: Game;
 }
 
 export interface Giveaway {
@@ -93,6 +100,8 @@ export interface Article {
   imageUrl?: string;
   gameId?: string;
   url?: string;
+  /** Denormalized catalogue snapshot from content-feed when present. */
+  game?: Game;
 }
 
 export interface Video {
