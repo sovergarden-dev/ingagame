@@ -33,23 +33,47 @@ function createDeps(): SteamConnectDeps {
       const { error } = await supabase.from("steam_connect_nonces").insert({
         user_id: row.userId,
         nonce: row.nonce,
+        ticket: row.ticket,
         return_origin: row.returnOrigin,
         expires_at: row.expiresAt,
       });
       if (error) throw error;
     },
-    consumeNonce: async (nonce, now) => {
+    attachPendingSteam: async (nonce, now, pending) => {
       const { data, error } = await supabase
         .from("steam_connect_nonces")
-        .update({ consumed_at: now.toISOString() })
+        .update({
+          steam_id: pending.steamId,
+          persona_name: pending.personaName,
+          avatar_url: pending.avatarUrl,
+        })
         .eq("nonce", nonce)
         .is("consumed_at", null)
         .gt("expires_at", now.toISOString())
-        .select("user_id, return_origin")
+        .select("ticket, return_origin")
         .maybeSingle();
       if (error) throw error;
       if (!data) return null;
-      return { userId: data.user_id as string, returnOrigin: data.return_origin as string };
+      return { ticket: data.ticket as string, returnOrigin: data.return_origin as string };
+    },
+    confirmSteamLink: async (ticket, userId, now) => {
+      const { data, error } = await supabase
+        .from("steam_connect_nonces")
+        .update({ consumed_at: now.toISOString() })
+        .eq("ticket", ticket)
+        .eq("user_id", userId)
+        .is("consumed_at", null)
+        .gt("expires_at", now.toISOString())
+        .not("steam_id", "is", null)
+        .select("steam_id, persona_name, avatar_url")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data?.steam_id) return null;
+      return {
+        steamId: data.steam_id as string,
+        personaName: (data.persona_name as string | null) ?? null,
+        avatarUrl: (data.avatar_url as string | null) ?? null,
+      };
     },
     upsertSteamLink: async (row) => {
       const { data: existing, error: lookupError } = await supabase

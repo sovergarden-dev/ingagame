@@ -34,13 +34,24 @@ export type SteamConnectDeps = {
   insertNonce: (row: {
     userId: string;
     nonce: string;
+    ticket: string;
     returnOrigin: string;
     expiresAt: string;
   }) => Promise<void>;
-  consumeNonce: (
+  attachPendingSteam: (
     nonce: string,
     now: Date,
-  ) => Promise<{ userId: string; returnOrigin: string } | null>;
+    pending: { steamId: string; personaName: string | null; avatarUrl: string | null },
+  ) => Promise<{ ticket: string; returnOrigin: string } | null>;
+  confirmSteamLink: (
+    ticket: string,
+    userId: string,
+    now: Date,
+  ) => Promise<{
+    steamId: string;
+    personaName: string | null;
+    avatarUrl: string | null;
+  } | null>;
   upsertSteamLink: (row: SteamLinkRecord) => Promise<"ok" | "steam_taken">;
   verifyOpenId: (params: URLSearchParams) => Promise<boolean>;
   fetchPersona: (
@@ -55,6 +66,10 @@ export function corsHeaders(): Record<string, string> {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Expose-Headers": "Location",
   };
+}
+
+export function steamConnectCallbackUrl(supabaseUrl: string): string {
+  return `${supabaseUrl.replace(/\/$/, "")}/functions/v1/steam-connect/callback`;
 }
 
 export function extractSteamId(claimedId: string | null | undefined): string | null {
@@ -99,6 +114,34 @@ export function buildSteamOpenIdRedirect(opts: { realm: string; returnTo: string
   return url.toString();
 }
 
+export function signedFieldsInclude(signed: string | null, field: string): boolean {
+  if (!signed) return false;
+  return signed
+    .split(",")
+    .map((part) => part.trim())
+    .includes(field);
+}
+
+export function returnToMatchesCallback(returnTo: string, expectedCallback: string): boolean {
+  try {
+    const got = new URL(returnTo);
+    const expected = new URL(expectedCallback);
+    return got.origin === expected.origin && got.pathname === expected.pathname;
+  } catch {
+    return false;
+  }
+}
+
+/** Nonce lives only on signed openid.return_to — never the unsigned callback query. */
+export function readNonceFromReturnTo(returnTo: string | null): string | null {
+  if (!returnTo) return null;
+  try {
+    return new URL(returnTo).searchParams.get("nonce");
+  } catch {
+    return null;
+  }
+}
+
 export async function verifySteamOpenId(
   params: URLSearchParams,
   fetchImpl: typeof fetch = fetch,
@@ -110,12 +153,13 @@ export async function verifySteamOpenId(
   body.set("openid.mode", "check_authentication");
   const response = await fetchImpl(STEAM_OPENID_PROVIDER, {
     method: "POST",
+    redirect: "error",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });
   if (!response.ok) return false;
   const text = await response.text();
-  return /is_valid\s*:\s*true/.test(text);
+  return /^is_valid:true$/m.test(text);
 }
 
 export async function fetchSteamPersona(
@@ -127,7 +171,7 @@ export async function fetchSteamPersona(
   const url = new URL("https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/");
   url.searchParams.set("key", apiKey);
   url.searchParams.set("steamids", steamId);
-  const response = await fetchImpl(url);
+  const response = await fetchImpl(url, { redirect: "error" });
   if (!response.ok) return { personaName: null, avatarUrl: null };
   const json: unknown = await response.json().catch(() => null);
   const player = readPlayer(json);
@@ -145,11 +189,12 @@ function readPlayer(json: unknown): { personaname?: unknown; avatarfull?: unknow
   return players[0] as { personaname?: unknown; avatarfull?: unknown };
 }
 
-export function routeSteamConnect(url: URL): "start" | "callback" | "sync" | null {
+export function routeSteamConnect(url: URL): "start" | "callback" | "sync" | "confirm" | null {
   const path = url.pathname.replace(/\/+$/, "");
   if (path.endsWith("/start") || url.searchParams.get("step") === "start") return "start";
   if (path.endsWith("/callback") || url.searchParams.get("step") === "callback") return "callback";
   if (path.endsWith("/sync") || url.searchParams.get("step") === "sync") return "sync";
+  if (path.endsWith("/confirm") || url.searchParams.get("step") === "confirm") return "confirm";
   if (url.searchParams.get("openid.mode") === "id_res") return "callback";
   if (path.endsWith("/steam-connect")) return "start";
   return null;
@@ -184,16 +229,21 @@ function originOf(value: string): string | null {
   }
 }
 
-function readNonce(url: URL): string | null {
-  const direct = url.searchParams.get("nonce");
-  if (direct) return direct;
-  const returnTo = url.searchParams.get("openid.return_to");
-  if (!returnTo) return null;
-  try {
-    return new URL(returnTo).searchParams.get("nonce");
-  } catch {
-    return null;
-  }
+function appRedirect(returnOrigin: string, params: Record<string, string>): Response {
+  const dest = new URL(SETTINGS_PATH, `${returnOrigin}/`);
+  for (const [key, value] of Object.entries(params)) dest.searchParams.set(key, value);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      ...corsHeaders(),
+      Location: dest.toString(),
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+function fallbackOrigin(deps: SteamConnectDeps): string {
+  return originOf(deps.env.returnOrigin) ?? "https://invalid.local";
 }
 
 function openidCheckParams(url: URL): URLSearchParams {
@@ -203,6 +253,16 @@ function openidCheckParams(url: URL): URLSearchParams {
   }
   params.set("openid.mode", "check_authentication");
   return params;
+}
+
+function assertionLooksSigned(url: URL): boolean {
+  const signed = url.searchParams.get("openid.signed");
+  if (!signed) return true;
+  return (
+    signedFieldsInclude(signed, "claimed_id") &&
+    signedFieldsInclude(signed, "identity") &&
+    signedFieldsInclude(signed, "return_to")
+  );
 }
 
 async function handleStart(req: Request, deps: SteamConnectDeps): Promise<Response> {
@@ -221,17 +281,17 @@ async function handleStart(req: Request, deps: SteamConnectDeps): Promise<Respon
   if (!realm || !returnOrigin) return jsonResponse({ error: "not_configured" }, 500);
 
   const nonce = deps.randomNonce();
+  const ticket = deps.randomNonce();
   const expiresAt = new Date(deps.now().getTime() + NONCE_TTL_MS).toISOString();
   await deps.insertNonce({
     userId: user.id,
     nonce,
+    ticket,
     returnOrigin,
     expiresAt,
   });
 
-  const returnTo = new URL(
-    `${deps.env.supabaseUrl.replace(/\/$/, "")}/functions/v1/steam-connect/callback`,
-  );
+  const returnTo = new URL(steamConnectCallbackUrl(deps.env.supabaseUrl));
   returnTo.searchParams.set("nonce", nonce);
   const redirectUrl = buildSteamOpenIdRedirect({
     realm,
@@ -242,21 +302,34 @@ async function handleStart(req: Request, deps: SteamConnectDeps): Promise<Respon
 }
 
 async function handleCallback(req: Request, deps: SteamConnectDeps): Promise<Response> {
-  if (req.method !== "GET") return jsonResponse({ error: "method_not_allowed" }, 405);
+  const fallback = fallbackOrigin(deps);
+  if (req.method !== "GET") return appRedirect(fallback, { steam: "error" });
 
   const url = new URL(req.url);
-  const claimedId =
-    url.searchParams.get("openid.claimed_id") ?? url.searchParams.get("openid.identity");
+  if (url.searchParams.get("openid.mode") !== "id_res") {
+    return appRedirect(fallback, { steam: "error" });
+  }
+
+  const claimedId = url.searchParams.get("openid.claimed_id");
+  const identity = url.searchParams.get("openid.identity");
   const steamId = extractSteamId(claimedId);
-  if (!steamId) return jsonResponse({ error: "openid_invalid" }, 401);
+  const identityId = extractSteamId(identity);
+  if (!steamId || !identityId || steamId !== identityId) {
+    return appRedirect(fallback, { steam: "error" });
+  }
+
+  const returnTo = url.searchParams.get("openid.return_to");
+  const expectedCallback = steamConnectCallbackUrl(deps.env.supabaseUrl);
+  if (!returnTo || !returnToMatchesCallback(returnTo, expectedCallback)) {
+    return appRedirect(fallback, { steam: "error" });
+  }
+  if (!assertionLooksSigned(url)) return appRedirect(fallback, { steam: "error" });
 
   const valid = await deps.verifyOpenId(openidCheckParams(url));
-  if (!valid) return jsonResponse({ error: "openid_invalid" }, 401);
+  if (!valid) return appRedirect(fallback, { steam: "error" });
 
-  const nonce = readNonce(url);
-  if (!nonce) return jsonResponse({ error: "nonce_invalid" }, 401);
-  const bound = await deps.consumeNonce(nonce, deps.now());
-  if (!bound) return jsonResponse({ error: "nonce_invalid" }, 401);
+  const nonce = readNonceFromReturnTo(returnTo);
+  if (!nonce) return appRedirect(fallback, { steam: "error" });
 
   let personaName: string | null = null;
   let avatarUrl: string | null = null;
@@ -268,25 +341,59 @@ async function handleCallback(req: Request, deps: SteamConnectDeps): Promise<Res
     /* persona is optional in P0c; steam_id is enough */
   }
 
-  const result = await deps.upsertSteamLink({
-    userId: bound.userId,
+  const pending = await deps.attachPendingSteam(nonce, deps.now(), {
     steamId,
     personaName,
     avatarUrl,
   });
+  if (!pending) return appRedirect(fallback, { steam: "error" });
+
+  const allowed = originOf(deps.env.returnOrigin) ?? pending.returnOrigin;
+  return appRedirect(allowed, { steam: "pending", ticket: pending.ticket });
+}
+
+async function handleConfirm(req: Request, deps: SteamConnectDeps): Promise<Response> {
+  if (req.method !== "POST") return jsonResponse({ error: "method_not_allowed" }, 405);
+  const jwt = bearerToken(req);
+  if (!jwt) return jsonResponse({ error: "sign_in_required" }, 401);
+  const user = await deps.getUser(jwt);
+  if (!user) return jsonResponse({ error: "sign_in_required" }, 401);
+
+  let ticket = "";
+  try {
+    const json: unknown = await req.json();
+    if (
+      json &&
+      typeof json === "object" &&
+      typeof (json as { ticket?: unknown }).ticket === "string"
+    ) {
+      ticket = (json as { ticket: string }).ticket;
+    }
+  } catch {
+    ticket = "";
+  }
+  if (!ticket) return jsonResponse({ error: "ticket_invalid" }, 401);
+
+  const pending = await deps.confirmSteamLink(ticket, user.id, deps.now());
+  if (!pending) return jsonResponse({ error: "ticket_invalid" }, 401);
+
+  const result = await deps.upsertSteamLink({
+    userId: user.id,
+    steamId: pending.steamId,
+    personaName: pending.personaName,
+    avatarUrl: pending.avatarUrl,
+  });
   if (result === "steam_taken") return jsonResponse({ error: "steam_taken" }, 409);
 
-  const allowed = originOf(deps.env.returnOrigin) ?? bound.returnOrigin;
-  const dest = new URL(SETTINGS_PATH, `${allowed}/`);
-  dest.searchParams.set("steam", "connected");
-  return new Response(null, {
-    status: 302,
-    headers: {
-      ...corsHeaders(),
-      Location: dest.toString(),
-      "Cache-Control": "no-store",
-    },
-  });
+  return jsonResponse(
+    publicSteamProfile({
+      userId: user.id,
+      steamId: pending.steamId,
+      personaName: pending.personaName,
+      avatarUrl: pending.avatarUrl,
+    }),
+    200,
+  );
 }
 
 async function handleSync(req: Request, deps: SteamConnectDeps): Promise<Response> {
@@ -307,6 +414,7 @@ export async function handleSteamConnect(req: Request, deps: SteamConnectDeps): 
     const route = routeSteamConnect(new URL(req.url));
     if (route === "start") return await handleStart(req, deps);
     if (route === "callback") return await handleCallback(req, deps);
+    if (route === "confirm") return await handleConfirm(req, deps);
     if (route === "sync") return await handleSync(req, deps);
     return jsonResponse({ error: "not_found" }, 404);
   } catch {

@@ -68,6 +68,11 @@ export function steamConnectSyncUrl(baseUrl: string): string {
   return `${root}/functions/v1/steam-connect/sync`;
 }
 
+export function steamConnectConfirmUrl(baseUrl: string): string {
+  const root = baseUrl.replace(/\/$/, "");
+  return `${root}/functions/v1/steam-connect/confirm`;
+}
+
 export function isSteamOpenIdRedirect(value: string): boolean {
   try {
     const url = new URL(value);
@@ -115,4 +120,37 @@ export async function startSteamConnect(options: StartSteamConnectOptions): Prom
 
   const assign = options.assign ?? ((url: string) => window.location.assign(url));
   assign(redirectUrl);
+}
+
+export type ConfirmSteamConnectOptions = {
+  ticket: string;
+  accessToken: string;
+  supabaseUrl: string;
+  publishableKey: string;
+  fetch?: typeof fetch;
+};
+
+export async function confirmSteamConnect(
+  options: ConfirmSteamConnectOptions,
+): Promise<SteamPublicProfile> {
+  const response = await (options.fetch ?? fetch)(steamConnectConfirmUrl(options.supabaseUrl), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${options.accessToken}`,
+      apikey: options.publishableKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ticket: options.ticket }),
+  });
+  const json: unknown = await response.json().catch(() => null);
+  if (!response.ok || !json || typeof json !== "object") {
+    throw new SteamConnectError("start_failed");
+  }
+  const profile = toPublicSteamProfile({
+    steam_id: (json as { steamId?: unknown }).steamId,
+    persona_name: (json as { personaName?: unknown }).personaName,
+    avatar_url: (json as { avatarUrl?: unknown }).avatarUrl,
+  });
+  if (!profile.connected) throw new SteamConnectError("start_failed");
+  return profile;
 }

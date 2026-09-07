@@ -13,6 +13,7 @@ import {
   STEAM_LINKS_PUBLIC_COLUMNS,
   SteamConnectError,
   allowMockSteam,
+  confirmSteamConnect,
   startSteamConnect,
   toPublicSteamProfile,
   type SteamPublicProfile,
@@ -125,13 +126,66 @@ export function SteamProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (mock || typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("steam") !== "connected") return;
-    params.delete("steam");
-    const search = params.toString();
-    const next = `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`;
-    window.history.replaceState(null, "", next);
+    const steam = params.get("steam");
+    const ticket = params.get("ticket");
+    if (steam !== "connected" && steam !== "pending" && steam !== "error") return;
+
+    const strip = () => {
+      params.delete("steam");
+      params.delete("ticket");
+      const search = params.toString();
+      const next = `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`;
+      window.history.replaceState(null, "", next);
+    };
+
+    if (steam === "error") {
+      setErrorCode("start-failed");
+      setStatus("error");
+      strip();
+      return;
+    }
+
+    if (steam === "pending") {
+      if (
+        !ticket ||
+        !session?.access_token ||
+        !env.VITE_SUPABASE_URL ||
+        !env.VITE_SUPABASE_PUBLISHABLE_KEY
+      ) {
+        setErrorCode(session?.access_token ? "start-failed" : "sign-in-required");
+        setStatus("error");
+        return;
+      }
+      void (async () => {
+        try {
+          const profile = await confirmSteamConnect({
+            ticket,
+            accessToken: session.access_token,
+            supabaseUrl: env.VITE_SUPABASE_URL,
+            publishableKey: env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          });
+          const next = snapshotFromPublic(profile);
+          setSnapshot(next);
+          setStatus(next ? "connected" : "disconnected");
+          setErrorCode(null);
+          strip();
+        } catch {
+          setErrorCode("start-failed");
+          setStatus("error");
+        }
+      })();
+      return;
+    }
+
+    strip();
     void loadServerLink();
-  }, [mock, loadServerLink]);
+  }, [
+    mock,
+    loadServerLink,
+    session?.access_token,
+    env.VITE_SUPABASE_URL,
+    env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  ]);
 
   const connectMock = useCallback(async (handle: string) => {
     setStatus("connecting");

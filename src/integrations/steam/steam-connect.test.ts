@@ -6,45 +6,87 @@ import {
   handleSteamConnect,
   isSteamOpenIdRedirect,
   publicSteamProfile,
+  readNonceFromReturnTo,
+  returnToMatchesCallback,
+  steamConnectCallbackUrl,
+  verifySteamOpenId,
   type SteamConnectDeps,
   type SteamLinkRecord,
 } from "../../../supabase/functions/steam-connect/handler.ts";
 
 const USER_ID = "11111111-1111-1111-1111-111111111111";
+const OTHER_USER = "22222222-2222-2222-2222-222222222222";
 const STEAM_ID = "76561198000000000";
 const RETURN_ORIGIN = "https://ingagame.lovable.app";
 const SUPABASE_URL = "https://xtmejuuuqiuqawstptuy.supabase.co";
 const API_KEY = "steam-web-api-key-not-for-browser";
 
+type NonceRow = {
+  userId: string;
+  ticket: string;
+  returnOrigin: string;
+  expiresAt: Date;
+  consumed: boolean;
+  steamId: string | null;
+  personaName: string | null;
+  avatarUrl: string | null;
+};
+
 function baseDeps(overrides: Partial<SteamConnectDeps> = {}): SteamConnectDeps {
-  const nonces = new Map<
-    string,
-    { userId: string; returnOrigin: string; expiresAt: Date; consumed: boolean }
-  >();
+  const byNonce = new Map<string, NonceRow>();
   const links = new Map<string, SteamLinkRecord>();
+  let nonceCalls = 0;
 
   const deps: SteamConnectDeps = {
     now: () => new Date("2026-09-07T12:00:00.000Z"),
-    randomNonce: () => "nonce-fixed",
+    randomNonce: () => {
+      nonceCalls += 1;
+      return nonceCalls === 1 ? "nonce-fixed" : "ticket-fixed";
+    },
     env: {
       supabaseUrl: SUPABASE_URL,
       steamApiKey: API_KEY,
       returnOrigin: RETURN_ORIGIN,
     },
-    getUser: async (jwt) => (jwt === "user-jwt" ? { id: USER_ID } : null),
+    getUser: async (jwt) => {
+      if (jwt === "user-jwt") return { id: USER_ID };
+      if (jwt === "other-jwt") return { id: OTHER_USER };
+      return null;
+    },
     insertNonce: async (row) => {
-      nonces.set(row.nonce, {
+      byNonce.set(row.nonce, {
         userId: row.userId,
+        ticket: row.ticket,
         returnOrigin: row.returnOrigin,
         expiresAt: new Date(row.expiresAt),
         consumed: false,
+        steamId: null,
+        personaName: null,
+        avatarUrl: null,
       });
     },
-    consumeNonce: async (nonce, now) => {
-      const row = nonces.get(nonce);
+    attachPendingSteam: async (nonce, now, pending) => {
+      const row = byNonce.get(nonce);
       if (!row || row.consumed || row.expiresAt <= now) return null;
-      row.consumed = true;
-      return { userId: row.userId, returnOrigin: row.returnOrigin };
+      row.steamId = pending.steamId;
+      row.personaName = pending.personaName;
+      row.avatarUrl = pending.avatarUrl;
+      return { ticket: row.ticket, returnOrigin: row.returnOrigin };
+    },
+    confirmSteamLink: async (ticket, userId, now) => {
+      for (const row of byNonce.values()) {
+        if (row.ticket !== ticket) continue;
+        if (row.userId !== userId || row.consumed || row.expiresAt <= now || !row.steamId) {
+          return null;
+        }
+        row.consumed = true;
+        return {
+          steamId: row.steamId,
+          personaName: row.personaName,
+          avatarUrl: row.avatarUrl,
+        };
+      }
+      return null;
     },
     upsertSteamLink: async (row) => {
       for (const existing of links.values()) {
@@ -64,27 +106,40 @@ function baseDeps(overrides: Partial<SteamConnectDeps> = {}): SteamConnectDeps {
   return deps;
 }
 
-function startRequest(init: RequestInit = {}) {
+function startRequest(jwt = "user-jwt") {
   return new Request(`${SUPABASE_URL}/functions/v1/steam-connect/start`, {
     method: "GET",
     headers: {
-      Authorization: "Bearer user-jwt",
+      Authorization: `Bearer ${jwt}`,
       apikey: "sb_publishable_test",
     },
-    ...init,
   });
 }
 
 function callbackUrl(openid: Record<string, string> = {}) {
-  const url = new URL(`${SUPABASE_URL}/functions/v1/steam-connect/callback`);
-  url.searchParams.set("nonce", "nonce-fixed");
+  const returnTo = new URL(steamConnectCallbackUrl(SUPABASE_URL));
+  returnTo.searchParams.set("nonce", "nonce-fixed");
+  const url = new URL(steamConnectCallbackUrl(SUPABASE_URL));
+  url.searchParams.set("nonce", "attacker-nonce");
   url.searchParams.set("openid.ns", "http://specs.openid.net/auth/2.0");
   url.searchParams.set("openid.mode", "id_res");
   url.searchParams.set("openid.claimed_id", `https://steamcommunity.com/openid/id/${STEAM_ID}`);
   url.searchParams.set("openid.identity", `https://steamcommunity.com/openid/id/${STEAM_ID}`);
-  url.searchParams.set("openid.return_to", url.toString());
+  url.searchParams.set("openid.return_to", returnTo.toString());
+  url.searchParams.set("openid.signed", "claimed_id,identity,return_to");
   for (const [key, value] of Object.entries(openid)) url.searchParams.set(key, value);
   return url;
+}
+
+function confirmRequest(ticket: string, jwt = "user-jwt") {
+  return new Request(`${SUPABASE_URL}/functions/v1/steam-connect/confirm`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${jwt}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ticket }),
+  });
 }
 
 describe("extractSteamId / isSteamOpenIdRedirect", () => {
@@ -98,6 +153,43 @@ describe("extractSteamId / isSteamOpenIdRedirect", () => {
     assert.equal(isSteamOpenIdRedirect(`${STEAM_OPENID_PROVIDER}?openid.mode=checkid_setup`), true);
     assert.equal(isSteamOpenIdRedirect("https://evil.example/openid/login"), false);
     assert.equal(isSteamOpenIdRedirect(`${STEAM_OPENID_PROVIDER}?next=https://evil.example`), true);
+  });
+});
+
+describe("return_to / nonce binding", () => {
+  it("reads the nonce only from openid.return_to", () => {
+    const returnTo = `${steamConnectCallbackUrl(SUPABASE_URL)}?nonce=nonce-fixed`;
+    assert.equal(readNonceFromReturnTo(returnTo), "nonce-fixed");
+    assert.equal(returnToMatchesCallback(returnTo, steamConnectCallbackUrl(SUPABASE_URL)), true);
+    assert.equal(
+      returnToMatchesCallback(
+        "https://evil.example/callback?nonce=nonce-fixed",
+        steamConnectCallbackUrl(SUPABASE_URL),
+      ),
+      false,
+    );
+  });
+});
+
+describe("verifySteamOpenId", () => {
+  it("requires a full is_valid:true line and does not follow redirects", async () => {
+    const calls: RequestRedirect[] = [];
+    const ok = await verifySteamOpenId(
+      new URLSearchParams({ "openid.mode": "id_res" }),
+      async (_url, init) => {
+        calls.push(init?.redirect ?? "follow");
+        return new Response("ns:http://specs.openid.net/auth/2.0\nis_valid:true\n", {
+          status: 200,
+        });
+      },
+    );
+    assert.equal(ok, true);
+    assert.deepEqual(calls, ["error"]);
+
+    const bad = await verifySteamOpenId(new URLSearchParams(), async () => {
+      return new Response("is_valid : true", { status: 200 });
+    });
+    assert.equal(bad, false);
   });
 });
 
@@ -156,8 +248,8 @@ describe("handleSteamConnect start", () => {
   });
 });
 
-describe("handleSteamConnect callback", () => {
-  it("verifies OpenID, stores the link, and redirects to the app origin", async () => {
+describe("handleSteamConnect callback + confirm", () => {
+  it("does not upsert until the signed-in user confirms the ticket", async () => {
     const stored: SteamLinkRecord[] = [];
     const verified: URLSearchParams[] = [];
     const deps = baseDeps({
@@ -172,25 +264,57 @@ describe("handleSteamConnect callback", () => {
     });
     await handleSteamConnect(startRequest(), deps);
 
-    const response = await handleSteamConnect(new Request(callbackUrl()), deps);
-    assert.equal(response.status, 302);
-    assert.equal(response.headers.get("Location"), `${RETURN_ORIGIN}/settings?steam=connected`);
+    const callback = await handleSteamConnect(new Request(callbackUrl()), deps);
+    assert.equal(callback.status, 302);
+    assert.equal(
+      callback.headers.get("Location"),
+      `${RETURN_ORIGIN}/settings?steam=pending&ticket=ticket-fixed`,
+    );
     assert.equal(verified.length, 1);
+    assert.equal(stored.length, 0);
+    assert.equal((await callback.text()).includes(API_KEY), false);
+
+    const csrf = await handleSteamConnect(confirmRequest("ticket-fixed", "other-jwt"), deps);
+    assert.equal(csrf.status, 401);
+    assert.equal(stored.length, 0);
+
+    const confirmed = await handleSteamConnect(confirmRequest("ticket-fixed"), deps);
+    assert.equal(confirmed.status, 200);
+    const profile = (await confirmed.json()) as Record<string, unknown>;
+    assert.deepEqual(profile, {
+      connected: true,
+      personaName: "persona-0000",
+      avatarUrl: `https://avatars.steamstatic.com/${STEAM_ID}.jpg`,
+      steamId: STEAM_ID,
+    });
     assert.equal(stored.length, 1);
     assert.equal(stored[0]?.userId, USER_ID);
-    assert.equal(stored[0]?.steamId, STEAM_ID);
-    assert.equal(stored[0]?.personaName, "persona-0000");
-    const body = await response.text();
-    assert.equal(body.includes(API_KEY), false);
+    assert.equal(JSON.stringify(profile).includes(API_KEY), false);
   });
 
-  it("rejects an unverified OpenID assertion", async () => {
+  it("ignores an unsigned nonce query param and rejects a mismatched return_to", async () => {
+    const deps = baseDeps();
+    await handleSteamConnect(startRequest(), deps);
+
+    const swapped = callbackUrl();
+    assert.equal(swapped.searchParams.get("nonce"), "attacker-nonce");
+    const okPending = await handleSteamConnect(new Request(swapped), deps);
+    assert.match(okPending.headers.get("Location") ?? "", /steam=pending/);
+
+    const badReturn = callbackUrl({
+      "openid.return_to": "https://evil.example/callback?nonce=nonce-fixed",
+    });
+    const rejected = await handleSteamConnect(new Request(badReturn), deps);
+    assert.equal(rejected.status, 302);
+    assert.equal(rejected.headers.get("Location"), `${RETURN_ORIGIN}/settings?steam=error`);
+  });
+
+  it("redirects an unverified OpenID assertion to the app error page", async () => {
     const deps = baseDeps({ verifyOpenId: async () => false });
     await handleSteamConnect(startRequest(), deps);
     const response = await handleSteamConnect(new Request(callbackUrl()), deps);
-    assert.equal(response.status, 401);
-    const payload = (await response.json()) as { error: string };
-    assert.equal(payload.error, "openid_invalid");
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("Location"), `${RETURN_ORIGIN}/settings?steam=error`);
   });
 });
 

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   STEAM_LINKS_PUBLIC_COLUMNS,
   allowMockSteam,
+  confirmSteamConnect,
   parseSteamLinkRow,
   steamConnectStartUrl,
   startSteamConnect,
@@ -147,5 +148,46 @@ describe("startSteamConnect", () => {
         }),
       { name: "SteamConnectError" },
     );
+  });
+});
+
+describe("confirmSteamConnect", () => {
+  it("posts the ticket with the user JWT and maps only public fields", async () => {
+    const calls: { url: string; headers: Record<string, string>; body: string }[] = [];
+    const profile = await confirmSteamConnect({
+      ticket: "ticket-fixed",
+      accessToken: "user-jwt",
+      supabaseUrl: "https://proj.supabase.co",
+      publishableKey: "sb_publishable_test",
+      fetch: async (input, init) => {
+        const headers = new Headers(init?.headers);
+        calls.push({
+          url: String(input),
+          headers: Object.fromEntries(headers.entries()),
+          body: String(init?.body ?? ""),
+        });
+        return new Response(
+          JSON.stringify({
+            connected: true,
+            personaName: "Ada",
+            avatarUrl: "https://a",
+            steamId: "76561198000000000",
+            refresh_token: "leak",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      },
+    });
+    assert.equal(calls[0]?.url, "https://proj.supabase.co/functions/v1/steam-connect/confirm");
+    assert.equal(calls[0]?.headers["authorization"], "Bearer user-jwt");
+    assert.equal(calls[0]?.headers["apikey"], "sb_publishable_test");
+    assert.equal(calls[0]?.body, JSON.stringify({ ticket: "ticket-fixed" }));
+    assert.deepEqual(profile, {
+      connected: true,
+      personaName: "Ada",
+      avatarUrl: "https://a",
+      steamId: "76561198000000000",
+    });
+    assert.equal(JSON.stringify(profile).includes("leak"), false);
   });
 });

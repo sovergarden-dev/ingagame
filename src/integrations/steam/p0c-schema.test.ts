@@ -27,7 +27,10 @@ describe("P0c steam_links is authenticated-owner with REVOKE PUBLIC/anon", () =>
     assert.match(sql, /avatar_url TEXT/);
     assert.match(sql, /UNIQUE \(steam_id\)/);
     assert.match(sql, /ENABLE ROW LEVEL SECURITY/);
-    assert.match(sql, /REVOKE ALL ON TABLE public\.steam_links FROM PUBLIC,\s*anon;/);
+    assert.match(
+      sql,
+      /REVOKE ALL ON TABLE public\.steam_links FROM PUBLIC,\s*anon,\s*authenticated;/,
+    );
     assert.match(sql, /GRANT SELECT, DELETE ON public\.steam_links TO authenticated;/);
     assert.match(sql, /GRANT ALL ON public\.steam_links TO service_role;/);
     assert.match(sql, /CREATE POLICY "steam_links_select_own"/);
