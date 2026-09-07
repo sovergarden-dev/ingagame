@@ -17,6 +17,7 @@ import { GlobalLaunchWave } from "@/components/gp/GlobalLaunchWave";
 import { GameCard } from "@/components/gp/GameCard";
 import { DealCard } from "@/components/gp/DealCard";
 import { EmptyState } from "@/components/gp/EmptyState";
+import { FeedGate } from "@/components/gp/FeedGate";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useLibrary } from "@/library/LibraryProvider";
@@ -200,30 +201,42 @@ function GameDetail() {
         </TabsContent>
 
         <TabsContent value="deals" className="mt-4">
-          {deals.length ? (
-            <div className="gp-panel space-y-1 p-4">
-              {deals.map((deal) => (
-                <DealCard key={deal.id} deal={deal} locale={locale} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState title={t("empty.title")} body={t("empty.body")} />
-          )}
+          <FeedGate
+            isPending={dealsFeed.isPending}
+            result={dealsFeed.data}
+            onRetry={() => void dealsFeed.refetch()}
+          >
+            {deals.length ? (
+              <div className="gp-panel space-y-1 p-4">
+                {deals.map((deal) => (
+                  <DealCard key={deal.id} deal={deal} locale={locale} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState title={t("empty.title")} body={t("empty.body")} />
+            )}
+          </FeedGate>
         </TabsContent>
 
         <TabsContent value="news" className="mt-4">
-          {news.length ? (
-            <ul className="gp-panel divide-y divide-border p-4">
-              {news.map((a) => (
-                <li key={a.id} className="py-3">
-                  <p className="text-sm font-medium text-foreground">{a.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{a.source}</p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState title={t("empty.title")} body={t("empty.body")} />
-          )}
+          <FeedGate
+            isPending={newsFeed.isPending}
+            result={newsFeed.data}
+            onRetry={() => void newsFeed.refetch()}
+          >
+            {news.length ? (
+              <ul className="gp-panel divide-y divide-border p-4">
+                {news.map((a) => (
+                  <li key={a.id} className="py-3">
+                    <p className="text-sm font-medium text-foreground">{a.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{a.source}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState title={t("empty.title")} body={t("empty.body")} />
+            )}
+          </FeedGate>
         </TabsContent>
 
         <TabsContent value="trailers" className="mt-4">

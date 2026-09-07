@@ -1,6 +1,11 @@
 -- P0b: catalogue rows for the content-feed Edge function.
 -- GitHub-only: do not apply this migration to the remote database until named go.
 -- No CMS write path in P0. Edge uses service_role SELECT; publishable roles get no table rights.
+-- payload JSON is a catalogue DTO:
+--   releases → { game, event } (RadarEntry)
+--   deals    → Deal fields plus optional denormalized game
+--   news     → Article fields plus optional denormalized game
+-- Empty {} rows are dropped by the client; do not seed invalid payloads.
 
 CREATE TABLE public.content_items (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,

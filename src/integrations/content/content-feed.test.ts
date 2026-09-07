@@ -60,6 +60,9 @@ describe("toPublicItem", () => {
       store: "Steam",
       service_role: "super-secret",
       apiKey: "steam-provider-key",
+      steamApiKey: "leak-2",
+      clientSecret: "leak-3",
+      privateKey: "leak-4",
       token: "abc",
       game: { title: "Harborlight", password: "nope" },
     });

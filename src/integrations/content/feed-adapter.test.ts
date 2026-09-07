@@ -5,6 +5,9 @@ import {
   contentFeedUrl,
   fetchContentKind,
   parseContentFeedResponse,
+  selectArticleItems,
+  selectDealItems,
+  selectReleaseItems,
 } from "./feed.ts";
 
 describe("contentFeedUrl", () => {
@@ -50,6 +53,48 @@ describe("parseContentFeedResponse", () => {
       items: [{ id: "n1" }],
       fetchedAt: "2026-09-07T00:00:00.000Z",
     });
+  });
+});
+
+describe("selectReleaseItems", () => {
+  it("drops rows that are not { game, event } catalogue entries", () => {
+    const kept = selectReleaseItems([
+      {},
+      {
+        game: { id: "g1", slug: "harborlight", title: "Harborlight" },
+        event: { id: "e1", state: "upcoming", platforms: ["pc"] },
+      },
+      { game: "nope", event: { id: "e2" } },
+    ]);
+    assert.equal(kept.length, 1);
+    assert.equal(kept[0]?.event.id, "e1");
+  });
+});
+
+describe("selectDealItems / selectArticleItems", () => {
+  it("requires id plus deal or article fields", () => {
+    assert.deepEqual(
+      selectDealItems([
+        {},
+        {
+          id: "d1",
+          gameId: "g1",
+          store: "Steam",
+          priceCurrent: 1,
+          priceBase: 2,
+          discountPercent: 50,
+          currency: "USD",
+        },
+      ]).map((d) => d.id),
+      ["d1"],
+    );
+    assert.deepEqual(
+      selectArticleItems([
+        {},
+        { id: "a1", title: "Hello", source: "Wire", publishedAt: "2026-09-01T00:00:00.000Z" },
+      ]).map((a) => a.id),
+      ["a1"],
+    );
   });
 });
 

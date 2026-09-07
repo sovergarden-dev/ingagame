@@ -77,7 +77,13 @@ function Home() {
 
       <CountdownHero game={FEATURED_GAME} event={FEATURED_RELEASE} backdropUrl={HERO_BACKDROP} />
 
-      <ReleaseRadar entries={upcoming} referenceDate={REFERENCE_DATE} />
+      <FeedGate
+        isPending={releasesFeed.isPending}
+        result={releasesFeed.data}
+        onRetry={() => void releasesFeed.refetch()}
+      >
+        <ReleaseRadar entries={upcoming} referenceDate={REFERENCE_DATE} />
+      </FeedGate>
 
       <div className="grid gap-4 lg:grid-cols-3">
         {/* My next releases */}
@@ -105,36 +111,42 @@ function Home() {
         {/* Delay radar */}
         <section className="gp-panel p-4 sm:p-5">
           <SectionHeader title={t("section.changes")} />
-          <ul className="mt-3 space-y-1">
-            {changed.map(({ game, event }) => (
-              <li key={event.id}>
-                <Link
-                  to="/game/$slug"
-                  params={{ slug: game.slug }}
-                  className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-surface-2/70"
-                >
-                  <Clock3 aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-foreground">
-                      {game.title}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {formatReleaseDate(event.date, event.precision, locale)}
-                    </span>
-                  </span>
-                  <span
-                    className={
-                      (event.delayDays ?? 0) > 0
-                        ? "shrink-0 rounded-md bg-destructive/15 px-1.5 py-0.5 text-xs font-semibold text-destructive"
-                        : "shrink-0 rounded-md bg-success/15 px-1.5 py-0.5 text-xs font-semibold text-success"
-                    }
+          <FeedGate
+            isPending={releasesFeed.isPending}
+            result={releasesFeed.data}
+            onRetry={() => void releasesFeed.refetch()}
+          >
+            <ul className="mt-3 space-y-1">
+              {changed.map(({ game, event }) => (
+                <li key={event.id}>
+                  <Link
+                    to="/game/$slug"
+                    params={{ slug: game.slug }}
+                    className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-surface-2/70"
                   >
-                    {(event.delayDays ?? 0) > 0 ? `+${event.delayDays}d` : `${event.delayDays}d`}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                    <Clock3 aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-foreground">
+                        {game.title}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {formatReleaseDate(event.date, event.precision, locale)}
+                      </span>
+                    </span>
+                    <span
+                      className={
+                        (event.delayDays ?? 0) > 0
+                          ? "shrink-0 rounded-md bg-destructive/15 px-1.5 py-0.5 text-xs font-semibold text-destructive"
+                          : "shrink-0 rounded-md bg-success/15 px-1.5 py-0.5 text-xs font-semibold text-success"
+                      }
+                    >
+                      {(event.delayDays ?? 0) > 0 ? `+${event.delayDays}d` : `${event.delayDays}d`}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </FeedGate>
         </section>
 
         <GlobalLaunchWave regions={LAUNCH_WAVE} />
@@ -214,11 +226,17 @@ function Home() {
           viewAllTo="/releases"
           viewAllLabel={t("action.viewAll")}
         />
-        <div className="gp-scroll-x -mx-1 mt-3 flex gap-3 px-1 pb-2">
-          {recent.map(({ game }) => (
-            <GameCard key={game.id} game={game} />
-          ))}
-        </div>
+        <FeedGate
+          isPending={releasesFeed.isPending}
+          result={releasesFeed.data}
+          onRetry={() => void releasesFeed.refetch()}
+        >
+          <div className="gp-scroll-x -mx-1 mt-3 flex gap-3 px-1 pb-2">
+            {recent.map(({ game }) => (
+              <GameCard key={game.id} game={game} />
+            ))}
+          </div>
+        </FeedGate>
       </section>
 
       {/* News */}

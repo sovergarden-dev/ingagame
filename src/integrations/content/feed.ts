@@ -124,33 +124,101 @@ export async function fetchContentKind<T>(
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+export function isRadarEntry(value: unknown): value is RadarEntry {
+  if (!isRecord(value) || !isRecord(value.game) || !isRecord(value.event)) return false;
+  const { game, event } = value;
+  return (
+    typeof game.id === "string" &&
+    typeof game.slug === "string" &&
+    typeof game.title === "string" &&
+    typeof event.id === "string" &&
+    typeof event.state === "string" &&
+    Array.isArray(event.platforms)
+  );
+}
+
+export function isDealItem(value: unknown): value is Deal {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.gameId === "string" &&
+    typeof value.store === "string" &&
+    typeof value.priceCurrent === "number" &&
+    typeof value.priceBase === "number" &&
+    typeof value.discountPercent === "number" &&
+    typeof value.currency === "string"
+  );
+}
+
+export function isArticleItem(value: unknown): value is Article {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.source === "string" &&
+    typeof value.publishedAt === "string"
+  );
+}
+
+export function selectReleaseItems(items: unknown[]): RadarEntry[] {
+  return items.filter(isRadarEntry);
+}
+
+export function selectDealItems(items: unknown[]): Deal[] {
+  return items.filter(isDealItem);
+}
+
+export function selectArticleItems(items: unknown[]): Article[] {
+  return items.filter(isArticleItem);
+}
+
+function withSelectedItems<T>(
+  result: ContentFeedResult<unknown>,
+  items: T[],
+): ContentFeedResult<T> {
+  const status = result.status === "error" ? "error" : items.length ? "ok" : "empty";
+  return { ...result, items, status };
+}
+
 async function devMockItems(kind: ContentKind): Promise<unknown[]> {
   if (!import.meta.env.DEV) return [];
   const mock = await import("@/domain/mock-data");
   if (kind === "releases") return [...mock.UPCOMING_RELEASES, ...mock.RECENTLY_RELEASED];
-  if (kind === "deals") return mock.DEALS;
-  return mock.ARTICLES;
+  if (kind === "deals") {
+    return mock.DEALS.map((deal) => ({ ...deal, game: mock.getGame(deal.gameId) }));
+  }
+  return mock.ARTICLES.map((article) => ({
+    ...article,
+    ...(article.gameId ? { game: mock.getGame(article.gameId) } : {}),
+  }));
 }
 
 export async function getReleases(
   options: FetchContentKindOptions<RadarEntry> = {},
 ): Promise<ContentFeedResult<RadarEntry>> {
   const mockItems = options.mockItems ?? ((await devMockItems("releases")) as RadarEntry[]);
-  return fetchContentKind("releases", { ...options, mockItems });
+  const result = await fetchContentKind("releases", { ...options, mockItems });
+  return withSelectedItems(result, selectReleaseItems(result.items));
 }
 
 export async function getDeals(
   options: FetchContentKindOptions<Deal> = {},
 ): Promise<ContentFeedResult<Deal>> {
   const mockItems = options.mockItems ?? ((await devMockItems("deals")) as Deal[]);
-  return fetchContentKind("deals", { ...options, mockItems });
+  const result = await fetchContentKind("deals", { ...options, mockItems });
+  return withSelectedItems(result, selectDealItems(result.items));
 }
 
 export async function getNews(
   options: FetchContentKindOptions<Article> = {},
 ): Promise<ContentFeedResult<Article>> {
   const mockItems = options.mockItems ?? ((await devMockItems("news")) as Article[]);
-  return fetchContentKind("news", { ...options, mockItems });
+  const result = await fetchContentKind("news", { ...options, mockItems });
+  return withSelectedItems(result, selectArticleItems(result.items));
 }
 
 export function splitReleaseItems(items: RadarEntry[]): {

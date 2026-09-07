@@ -23,7 +23,7 @@ type ParseErr = { ok: false; status: number; error: string };
 export type ParseFeedResult = ParseOk | ParseErr;
 
 const SECRET_KEY =
-  /^(?:.*_)?(?:secret|password|token|service_role|api_?key|authorization|access_token|refresh_token)$/i;
+  /secret|password|token|api[_-]?key|service[_-]?role|authorization|private[_-]?key/i;
 
 export function corsHeaders(): Record<string, string> {
   return {

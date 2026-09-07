@@ -5,7 +5,6 @@ import { PageShell } from "@/components/gp/PageShell";
 import { FilterChip } from "@/components/gp/FilterChip";
 import { EmptyState } from "@/components/gp/EmptyState";
 import { FeedGate } from "@/components/gp/FeedGate";
-import { getGame } from "@/domain/mock-data";
 import { freshnessFromFeed } from "@/integrations/content/feed";
 import { useNewsFeed } from "@/integrations/content/use-content-feed";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -94,7 +93,7 @@ function NewsPage() {
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
             <article className="gp-panel overflow-hidden">
               {(() => {
-                const game = lead.game ?? (lead.gameId ? getGame(lead.gameId) : undefined);
+                const game = lead.game;
                 return (
                   <>
                     {game && (
@@ -130,7 +129,7 @@ function NewsPage() {
 
             <ul className="gp-panel divide-y divide-border p-2">
               {others.map((a) => {
-                const game = a.game ?? (a.gameId ? getGame(a.gameId) : undefined);
+                const game = a.game;
                 return (
                   <li key={a.id} className="flex gap-3 p-3">
                     {game && (

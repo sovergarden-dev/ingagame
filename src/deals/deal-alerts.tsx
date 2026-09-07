@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { getGame } from "@/domain/mock-data";
 import { isDealExpired, parseDealEndMs } from "@/domain/deal";
 import type { Deal } from "@/domain/types";
 import { useDealsFeed } from "@/integrations/content/use-content-feed";
@@ -46,7 +45,7 @@ export function useExpiredDeals(): DealAlert[] {
         if (!isDealExpired(deal.endsAt, now)) return [];
         const expiredAt = parseDealEndMs(deal.endsAt);
         if (expiredAt === null) return [];
-        const game = deal.game ?? getGame(deal.gameId);
+        const game = deal.game;
         if (!game) return [];
         return [{ deal, title: game.title, slug: game.slug, expiredAt }];
       })
