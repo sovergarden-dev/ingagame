@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { canonicalLinks } from "@/domain/seo";
+import { safeTimeZone } from "@/domain/release";
 import type { ReactNode } from "react";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { Switch } from "@/components/ui/switch";
@@ -13,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { LOCALES, type LocaleCode } from "@/i18n/locales";
 import { useI18n } from "@/i18n/I18nProvider";
-import { PLATFORMS } from "@/domain/platforms";
+import { PLATFORM_LIST, platformMessageKey } from "@/domain/platforms";
 import {
   usePreferences,
   type AccentPreset,
@@ -25,6 +27,11 @@ import {
 } from "@/preferences/PreferencesProvider";
 import { SteamPanel } from "@/components/gp/SteamPanel";
 import { AccountPanel } from "@/components/gp/AccountPanel";
+import { useWatchControls } from "@/watch/WatchControlsProvider";
+import { useHiddenGames } from "@/discover/HiddenGamesProvider";
+import { Button } from "@/components/ui/button";
+import { LOCAL_DATA_KEYS, localDataExport } from "@/domain/local-data";
+import { clearHomeSnapshot } from "@/pwa/home-snapshot-store";
 
 import { cn } from "@/lib/utils";
 
@@ -40,6 +47,7 @@ export const Route = createFileRoute("/settings")({
       { property: "og:title", content: "Settings — Inga" },
       { property: "og:description", content: "Theme, density, performance, privacy and language." },
     ],
+    links: canonicalLinks("/settings"),
   }),
   component: SettingsPage,
 });
@@ -104,6 +112,8 @@ function Segmented<T extends string>({
 }
 
 function SettingsPage() {
+  const watch = useWatchControls();
+  const hidden = useHiddenGames();
   const { t, locale, setLocale } = useI18n();
   const prefs = usePreferences();
 
@@ -132,7 +142,7 @@ function SettingsPage() {
                 <button
                   key={a.id}
                   type="button"
-                  aria-label={a.id}
+                  aria-label={t(`settings.accent.${a.id}` as "settings.accent.violet")}
                   aria-pressed={prefs.accent === a.id}
                   onClick={() => prefs.set("accent", a.id)}
                   className={cn(
@@ -210,6 +220,17 @@ function SettingsPage() {
           </Row>
         </Panel>
 
+        <Panel title={t("watch.title")}>
+          <Row label={t("watch.pause")}>
+            <Switch
+              checked={watch.paused}
+              onCheckedChange={watch.setPaused}
+              aria-label={t("watch.pause")}
+            />
+          </Row>
+          <p className="text-xs text-muted-foreground">{t("watch.pause.help")}</p>
+        </Panel>
+
         <Panel title={t("settings.localization")}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -234,7 +255,11 @@ function SettingsPage() {
                 id="region"
                 value={prefs.region}
                 onChange={(e) => prefs.set("region", e.target.value)}
+                aria-describedby="region-help"
               />
+              <p id="region-help" className="text-xs text-muted-foreground">
+                {t("settings.region.help")}
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -243,7 +268,11 @@ function SettingsPage() {
                 id="timezone"
                 value={prefs.timezone}
                 onChange={(e) => prefs.set("timezone", e.target.value)}
+                aria-describedby="timezone-help"
               />
+              <p id="timezone-help" className="text-xs text-muted-foreground">
+                {t("settings.timezone.help", { zone: safeTimeZone(prefs.timezone) })}
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -252,7 +281,11 @@ function SettingsPage() {
                 id="currency"
                 value={prefs.currency}
                 onChange={(e) => prefs.set("currency", e.target.value)}
+                aria-describedby="currency-help"
               />
+              <p id="currency-help" className="text-xs text-muted-foreground">
+                {t("settings.currency.help")}
+              </p>
             </div>
           </div>
 
@@ -272,21 +305,85 @@ function SettingsPage() {
           <AccountPanel />
         </Panel>
 
+        <Panel title={t("data.title")}>
+          <p className="text-sm text-muted-foreground">{t("data.body")}</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="glass"
+              onClick={() => {
+                const copy = localDataExport(
+                  (key) => window.localStorage.getItem(key),
+                  new Date().toISOString(),
+                );
+                const blob = new Blob([JSON.stringify(copy, null, 2)], {
+                  type: "application/json",
+                });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = "inga-local-data.json";
+                link.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              {t("data.export")}
+            </Button>
+            <Button
+              type="button"
+              variant="glass"
+              onClick={() => {
+                if (!window.confirm(t("data.deleteConfirm"))) return;
+                for (const key of LOCAL_DATA_KEYS) window.localStorage.removeItem(key);
+                void clearHomeSnapshot().finally(() => window.location.assign("/settings"));
+              }}
+            >
+              {t("data.delete")}
+            </Button>
+            {hidden.ids.length + hidden.genres.length > 0 ? (
+              <Button type="button" variant="glass" onClick={hidden.clear}>
+                {t("hide.clear")} (
+                {t("hide.count", { count: hidden.ids.length + hidden.genres.length })})
+              </Button>
+            ) : null}
+          </div>
+        </Panel>
+
         <Panel title={t("steam.title")}>
           <SteamPanel />
         </Panel>
 
         <Panel title={t("topbar.platforms")}>
-          <p className="text-sm text-muted-foreground">{t("page.placeholder")}</p>
           <ul className="flex flex-wrap gap-2">
-            {prefs.myPlatforms.map((p) => (
-              <li
-                key={p}
-                className="rounded-full border border-accent/40 bg-accent-soft px-3 py-1 text-xs font-medium text-accent"
-              >
-                {PLATFORMS[p].name}
-              </li>
-            ))}
+            {PLATFORM_LIST.map((platform) => {
+              const on = prefs.myPlatforms.includes(platform.id);
+              return (
+                <li key={platform.id}>
+                  <button
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() =>
+                      prefs.set(
+                        "myPlatforms",
+                        on
+                          ? prefs.myPlatforms.filter((id) => id !== platform.id)
+                          : [...prefs.myPlatforms, platform.id],
+                      )
+                    }
+                    className={
+                      on
+                        ? "inline-flex min-h-11 items-center rounded-full border border-accent/40 bg-accent-soft px-3 py-2 text-xs font-medium text-accent sm:min-h-0 sm:py-1"
+                        : "inline-flex min-h-11 items-center rounded-full border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:border-border-strong hover:text-foreground sm:min-h-0 sm:py-1"
+                    }
+                  >
+                    {(() => {
+                      const key = platformMessageKey(platform.id);
+                      return key ? t(key) : platform.name;
+                    })()}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </Panel>
       </div>

@@ -33,6 +33,18 @@ export const PLATFORM_FILTERS: { id: PlatformFilterId; labelKey: string }[] = [
   { id: "vr", labelKey: "platform.vr" },
 ];
 
+export function isPlatformFilterId(value: string | null): value is PlatformFilterId {
+  return PLATFORM_FILTERS.some((filter) => filter.id === value);
+}
+
+/** Family words that are not store brands. Store names stay as published. */
+export function platformMessageKey(
+  id: PlatformId,
+): "platform.pc" | "platform.mobile" | "platform.vr" | null {
+  if (id === "pc" || id === "mobile" || id === "vr") return `platform.${id}`;
+  return null;
+}
+
 export function matchesPlatformFilter(
   platforms: PlatformId[],
   filter: PlatformFilterId,

@@ -9,7 +9,7 @@ export function PageShell({
   title,
   description,
   toolbar,
-  freshness = { state: "fresh", minutesAgo: 0 },
+  freshness,
   children,
 }: {
   title: string;
@@ -28,7 +28,7 @@ export function PageShell({
           {...(description ? { description } : {})}
           size="lg"
         />
-        <FreshnessStatus status={freshness} />
+        {freshness ? <FreshnessStatus status={freshness} /> : null}
       </div>
       {toolbar && <div className="gp-panel flex flex-wrap items-center gap-4 p-3">{toolbar}</div>}
       {children}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { shouldOfferSwUpdate } from "@/pwa/sw-update";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -12,6 +13,7 @@ export function usePwaInstall() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
   const [dismissed, setDismissed] = useState(true);
+  const [updateReady, setUpdateReady] = useState(false);
 
   useEffect(() => {
     setDismissed(localStorage.getItem(DISMISS_KEY) === "1");
@@ -29,12 +31,31 @@ export function usePwaInstall() {
     window.addEventListener("beforeinstallprompt", onPrompt);
     window.addEventListener("appinstalled", onInstalled);
 
-    // Cleanup: remove any previously registered app service worker (stale caches).
     if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker
-        .getRegistrations()
-        .then((regs) => regs.forEach((r) => void r.unregister()))
-        .catch(() => undefined);
+      if (import.meta.env.PROD) {
+        void navigator.serviceWorker
+          .register("/sw.js")
+          .then((registration) => {
+            const offer = () => {
+              const hasController = Boolean(navigator.serviceWorker.controller);
+              const hasWaitingWorker = Boolean(registration.waiting);
+              if (!hasController && hasWaitingWorker) {
+                registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+              }
+              setUpdateReady(shouldOfferSwUpdate({ hasController, hasWaitingWorker }));
+            };
+            offer();
+            registration.addEventListener("updatefound", () => {
+              registration.installing?.addEventListener("statechange", offer);
+            });
+          })
+          .catch(() => undefined);
+      } else {
+        void navigator.serviceWorker
+          .getRegistrations()
+          .then((regs) => regs.forEach((r) => void r.unregister()))
+          .catch(() => undefined);
+      }
     }
 
     return () => {
@@ -56,11 +77,26 @@ export function usePwaInstall() {
     setDismissed(true);
   }, []);
 
+  const applyUpdate = useCallback(() => {
+    if (!("serviceWorker" in navigator)) return;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    });
+    void navigator.serviceWorker.getRegistration().then((registration) => {
+      registration?.waiting?.postMessage({ type: "SKIP_WAITING" });
+    });
+  }, []);
+
   return {
     canInstall: Boolean(deferred) && !installed,
     installed,
     dismissed,
+    updateReady,
     install,
     dismiss,
+    applyUpdate,
   };
 }

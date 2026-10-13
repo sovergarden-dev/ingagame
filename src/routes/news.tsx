@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { canonicalLinks } from "@/domain/seo";
 import { Newspaper } from "lucide-react";
 import { PageShell } from "@/components/gp/PageShell";
 import { FilterChip } from "@/components/gp/FilterChip";
@@ -8,6 +9,10 @@ import { FeedGate } from "@/components/gp/FeedGate";
 import { freshnessFromFeed } from "@/integrations/content/feed";
 import { feedGateProps, useNewsFeed } from "@/integrations/content/use-content-feed";
 import { useI18n } from "@/i18n/I18nProvider";
+import { displayTitle } from "@/domain/title";
+import { articlesForFollowed } from "@/domain/news";
+import { useLibrary } from "@/library/LibraryProvider";
+import { usePreferences } from "@/preferences/PreferencesProvider";
 
 export const Route = createFileRoute("/news")({
   head: () => ({
@@ -21,26 +26,31 @@ export const Route = createFileRoute("/news")({
       { property: "og:title", content: "Gaming News & Official Updates — Inga" },
       { property: "og:description", content: "Announcements, delays and official updates." },
     ],
+    links: canonicalLinks("/news"),
   }),
   component: NewsPage,
 });
 
 function NewsPage() {
   const { t, locale } = useI18n();
+  const { titleLanguage } = usePreferences();
+  const { following } = useLibrary();
   const feed = useNewsFeed();
   const articlesFeed = useMemo(() => feed.data?.items ?? [], [feed.data?.items]);
   const [sources, setSources] = useState<string[]>([]);
+  const [followedOnly, setFollowedOnly] = useState(false);
 
   const allSources = useMemo(
     () => [...new Set(articlesFeed.map((a) => a.source))].sort(),
     [articlesFeed],
   );
   const articles = useMemo(() => {
-    const list = sources.length
+    const bySource = sources.length
       ? articlesFeed.filter((a) => sources.includes(a.source))
       : articlesFeed;
+    const list = followedOnly ? articlesForFollowed(bySource, following) : bySource;
     return [...list].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
-  }, [articlesFeed, sources]);
+  }, [articlesFeed, sources, followedOnly, following]);
   const freshness = freshnessFromFeed(feed.data, feed.isPending, Date.now(), feed.isError);
 
   const fmt = new Intl.DateTimeFormat(locale, {
@@ -58,6 +68,9 @@ function NewsPage() {
       toolbar={
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="gp-eyebrow mr-1">{t("news.source")}</span>
+          <FilterChip active={followedOnly} onClick={() => setFollowedOnly((value) => !value)}>
+            {t("filter.followedOnly")}
+          </FilterChip>
           {allSources.map((source) => (
             <FilterChip
               key={source}
@@ -118,7 +131,7 @@ function NewsPage() {
                           params={{ slug: game.slug }}
                           className="inline-flex text-xs font-medium text-accent hover:underline"
                         >
-                          {t("news.related")}: {game.title}
+                          {t("news.related")}: {displayTitle(game, titleLanguage)}
                         </Link>
                       )}
                     </div>
@@ -153,7 +166,7 @@ function NewsPage() {
                           params={{ slug: game.slug }}
                           className="mt-1 inline-flex text-[11px] font-medium text-accent hover:underline"
                         >
-                          {game.title}
+                          {displayTitle(game, titleLanguage)}
                         </Link>
                       )}
                     </div>

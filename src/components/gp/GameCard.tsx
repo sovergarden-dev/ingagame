@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import type { Game } from "@/domain/types";
-import { formatReleaseDate } from "@/domain/release";
+import { useFormatReleaseDate } from "./use-format-release";
 import { PlatformBadgeList } from "./PlatformBadge";
 import { ReleaseStatusBadge } from "./ReleaseStatusBadge";
 import { WishlistButton } from "./WishlistButton";
 import { useI18n } from "@/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
+import { useGameTitle } from "./use-game-title";
 
 /** Standard poster card with metadata; used across discovery shelves. */
 export function GameCard({
@@ -18,7 +19,9 @@ export function GameCard({
   fluid?: boolean;
   className?: string;
 }) {
-  const { locale } = useI18n();
+  const { t, locale } = useI18n();
+  const title = useGameTitle(game);
+  const formatWhen = useFormatReleaseDate();
   const next = game.releaseEvents[0];
 
   return (
@@ -33,7 +36,7 @@ export function GameCard({
         <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-border bg-surface-2 transition-[transform,border-color] duration-200 group-hover/card:-translate-y-1 group-hover/card:border-accent/60">
           <img
             src={game.coverUrl}
-            alt={`${game.title} cover art`}
+            alt={t("media.coverAlt", { title })}
             loading="lazy"
             width={600}
             height={900}
@@ -41,7 +44,7 @@ export function GameCard({
           />
         </div>
         <h3 className="mt-2 line-clamp-1 font-semibold text-foreground transition-colors group-hover/card:text-accent">
-          {game.title}
+          {title}
         </h3>
       </Link>
       <div className="absolute right-2 top-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover/card:opacity-100 max-md:opacity-100">
@@ -55,7 +58,7 @@ export function GameCard({
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <ReleaseStatusBadge confidence={next.confidence} interactive={false} />
           <span className="text-[11px] text-muted-foreground">
-            {formatReleaseDate(next.date, next.precision, locale)}
+            {formatWhen(next.date, next.precision)}
           </span>
         </div>
       )}
@@ -74,6 +77,8 @@ export function GameCardCompact({
   className?: string;
 }) {
   const { locale } = useI18n();
+  const title = useGameTitle(game);
+  const formatWhen = useFormatReleaseDate();
   const next = game.releaseEvents[0];
   return (
     <Link
@@ -94,10 +99,10 @@ export function GameCardCompact({
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground group-hover:text-accent">
-          {game.title}
+          {title}
         </p>
         <p className="truncate text-xs text-muted-foreground">
-          {next ? formatReleaseDate(next.date, next.precision, locale) : game.developer}
+          {next ? formatWhen(next.date, next.precision) : game.developer}
         </p>
       </div>
       {trailing}

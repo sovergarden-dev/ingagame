@@ -2,7 +2,10 @@ import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { RadarEntry } from "@/domain/types";
-import { dayKey, formatReleaseDate, isCountdownable, shortDayLabel } from "@/domain/release";
+import { dayKey, isCountdownable, shortDayLabel } from "@/domain/release";
+import { useFormatReleaseDate } from "./use-format-release";
+import { displayTitle } from "@/domain/title";
+import { usePreferences } from "@/preferences/PreferencesProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { PlatformBadgeList } from "./PlatformBadge";
 import { ReleaseStatusBadge, ReleaseKindBadge } from "./ReleaseStatusBadge";
@@ -25,6 +28,7 @@ function groupByDay(entries: RadarEntry[]) {
 /** Vertical day-by-day spine — the reading view for a long release window. */
 export function TimelineView({ entries }: { entries: RadarEntry[] }) {
   const { t, locale } = useI18n();
+  const { titleLanguage } = usePreferences();
   const groups = useMemo(() => groupByDay(entries), [entries]);
 
   if (!groups.length) return <EmptyState title={t("empty.title")} body={t("empty.body")} />;
@@ -62,7 +66,9 @@ export function TimelineView({ entries }: { entries: RadarEntry[] }) {
                   className="size-12 shrink-0 rounded-md object-cover"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">{game.title}</p>
+                  <p className="truncate text-sm font-semibold text-foreground">
+                    {displayTitle(game, titleLanguage)}
+                  </p>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <ReleaseKindBadge kind={event.kind} />
                     <PlatformBadgeList platforms={event.platforms} max={3} />
@@ -80,7 +86,9 @@ export function TimelineView({ entries }: { entries: RadarEntry[] }) {
 
 /** Dense scannable list — one row per release, sorted by date. */
 export function AgendaView({ entries }: { entries: RadarEntry[] }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
+  const { titleLanguage } = usePreferences();
+  const formatWhen = useFormatReleaseDate();
   const rows = useMemo(
     () => [...entries].sort((a, b) => a.event.date.localeCompare(b.event.date)),
     [entries],
@@ -93,21 +101,21 @@ export function AgendaView({ entries }: { entries: RadarEntry[] }) {
       {rows.map(({ game, event }) => (
         <div key={event.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
           <div className="w-28 shrink-0 font-mono text-xs text-muted-foreground">
-            {formatReleaseDate(event.date, event.precision, locale)}
+            {formatWhen(event.date, event.precision)}
           </div>
           <Link
             to="/game/$slug"
             params={{ slug: game.slug }}
             className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground transition-colors hover:text-accent"
           >
-            {game.title}
+            {displayTitle(game, titleLanguage)}
           </Link>
           <ReleaseKindBadge kind={event.kind} />
           <PlatformBadgeList platforms={event.platforms} max={4} />
           <ReleaseStatusBadge confidence={event.confidence} />
           {event.state === "delayed" && event.delayDays ? (
             <span className="rounded-md bg-destructive/15 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-destructive">
-              +{event.delayDays}d
+              {t("countdown.shift", { n: `+${event.delayDays}` })}
             </span>
           ) : null}
           <WishlistButton gameId={game.id} />
@@ -126,6 +134,7 @@ export function MonthView({
   referenceDate: string;
 }) {
   const { t, locale } = useI18n();
+  const { titleLanguage } = usePreferences();
   const ref = new Date(referenceDate);
   const [offset, setOffset] = useState(0);
 
@@ -211,10 +220,14 @@ export function MonthView({
                     key={event.id}
                     to="/game/$slug"
                     params={{ slug: game.slug }}
-                    title={game.title}
+                    title={displayTitle(game, titleLanguage)}
                     className="block size-7 overflow-hidden rounded border border-border transition-transform hover:scale-110"
                   >
-                    <img src={game.coverUrl} alt={game.title} className="size-full object-cover" />
+                    <img
+                      src={game.coverUrl}
+                      alt={displayTitle(game, titleLanguage)}
+                      className="size-full object-cover"
+                    />
                   </Link>
                 ))}
                 {items.length > 3 && (

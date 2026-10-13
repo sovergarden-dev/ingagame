@@ -1,4 +1,5 @@
 import { PLATFORMS } from "../../domain/platforms.ts";
+import { isReleaseStillAhead } from "../../domain/release.ts";
 import type {
   Article,
   Deal,
@@ -52,6 +53,10 @@ export function contentFeedUrl(
   return url.toString();
 }
 
+export function showFixtureShelves(source: FeedSource | undefined) {
+  return source === "mock";
+}
+
 export function allowMockContentFeed(env: ViteEnvSlice = {}): boolean {
   if (env.DEV !== true) return false;
   if (env.VITE_CONTENT_FEED_MOCK === "0") return false;
@@ -66,6 +71,22 @@ export function parseContentFeedResponse(json: unknown): { items: unknown[]; fet
   const items = Array.isArray(record.items) ? record.items : [];
   const fetchedAt = typeof record.fetchedAt === "string" ? record.fetchedAt : "";
   return { items, fetchedAt };
+}
+
+export function devMockIfUnrenderable<T>(
+  result: ContentFeedResult<T>,
+  mockItems: T[],
+  env: ViteEnvSlice = {},
+): ContentFeedResult<T> {
+  if (result.items.length > 0) return result;
+  if (result.source !== "server") return result;
+  if (!allowMockContentFeed(env)) return result;
+  return {
+    items: mockItems,
+    fetchedAt: null,
+    source: "mock",
+    status: mockItems.length ? "ok" : "empty",
+  };
 }
 
 function readViteEnv(): ViteEnvSlice {
@@ -174,7 +195,9 @@ export function isReleaseEvent(value: unknown): value is ReleaseEvent {
   if (!isRecord(value)) return false;
   return (
     typeof value.id === "string" &&
+    value.id.trim().length > 0 &&
     typeof value.gameId === "string" &&
+    value.gameId.trim().length > 0 &&
     typeof value.date === "string" &&
     value.date.length >= 10 &&
     !Number.isNaN(Date.parse(value.date)) &&
@@ -190,7 +213,9 @@ export function isGameSnapshot(value: unknown): value is Game {
   if (!isRecord(value)) return false;
   if (
     typeof value.id !== "string" ||
+    value.id.trim().length === 0 ||
     typeof value.slug !== "string" ||
+    value.slug.trim().length === 0 ||
     typeof value.title !== "string" ||
     typeof value.coverUrl !== "string" ||
     typeof value.developer !== "string" ||
@@ -213,14 +238,17 @@ export function isGameSnapshot(value: unknown): value is Game {
 
 export function isRadarEntry(value: unknown): value is RadarEntry {
   if (!isRecord(value)) return false;
-  return isGameSnapshot(value.game) && isReleaseEvent(value.event);
+  if (!isGameSnapshot(value.game) || !isReleaseEvent(value.event)) return false;
+  return value.game.id === value.event.gameId;
 }
 
 export function isDealItem(value: unknown): value is Deal {
   if (
     !isRecord(value) ||
     typeof value.id !== "string" ||
+    value.id.trim().length === 0 ||
     typeof value.gameId !== "string" ||
+    value.gameId.trim().length === 0 ||
     typeof value.store !== "string" ||
     typeof value.priceCurrent !== "number" ||
     typeof value.priceBase !== "number" ||
@@ -229,7 +257,10 @@ export function isDealItem(value: unknown): value is Deal {
   ) {
     return false;
   }
-  if (value.game != null && !isGameSnapshot(value.game)) return false;
+  if (value.game != null) {
+    if (!isGameSnapshot(value.game)) return false;
+    if (value.game.id !== value.gameId) return false;
+  }
   return true;
 }
 
@@ -237,13 +268,23 @@ export function isArticleItem(value: unknown): value is Article {
   if (
     !isRecord(value) ||
     typeof value.id !== "string" ||
+    value.id.trim().length === 0 ||
     typeof value.title !== "string" ||
     typeof value.source !== "string" ||
     typeof value.publishedAt !== "string"
   ) {
     return false;
   }
-  if (value.game != null && !isGameSnapshot(value.game)) return false;
+  if (
+    value.gameId != null &&
+    (typeof value.gameId !== "string" || value.gameId.trim().length === 0)
+  ) {
+    return false;
+  }
+  if (value.game != null) {
+    if (!isGameSnapshot(value.game)) return false;
+    if (typeof value.gameId === "string" && value.game.id !== value.gameId) return false;
+  }
   return true;
 }
 
@@ -336,7 +377,8 @@ export async function getReleases(
 ): Promise<ContentFeedResult<RadarEntry>> {
   const mockItems = options.mockItems ?? ((await devMockItems("releases")) as RadarEntry[]);
   const result = await fetchContentKind("releases", { ...options, mockItems });
-  return withSelectedItems(result, selectReleaseItems(result.items));
+  const selected = withSelectedItems(result, selectReleaseItems(result.items));
+  return devMockIfUnrenderable(selected, mockItems, options.env ?? readViteEnv());
 }
 
 export async function getDeals(
@@ -344,7 +386,8 @@ export async function getDeals(
 ): Promise<ContentFeedResult<Deal>> {
   const mockItems = options.mockItems ?? ((await devMockItems("deals")) as Deal[]);
   const result = await fetchContentKind("deals", { ...options, mockItems });
-  return withSelectedItems(result, selectDealItems(result.items));
+  const selected = withSelectedItems(result, selectDealItems(result.items));
+  return devMockIfUnrenderable(selected, mockItems, options.env ?? readViteEnv());
 }
 
 export async function getNews(
@@ -352,15 +395,23 @@ export async function getNews(
 ): Promise<ContentFeedResult<Article>> {
   const mockItems = options.mockItems ?? ((await devMockItems("news")) as Article[]);
   const result = await fetchContentKind("news", { ...options, mockItems });
-  return withSelectedItems(result, selectArticleItems(result.items));
+  const selected = withSelectedItems(result, selectArticleItems(result.items));
+  return devMockIfUnrenderable(selected, mockItems, options.env ?? readViteEnv());
 }
 
-export function splitReleaseItems(items: RadarEntry[]): {
+export function splitReleaseItems(
+  items: RadarEntry[],
+  nowMs: number | null = null,
+): {
   upcoming: RadarEntry[];
   recent: RadarEntry[];
   changed: RadarEntry[];
 } {
-  const upcoming = items.filter((entry) => entry.event.state !== "available");
+  const notAvailable = items.filter((entry) => entry.event.state !== "available");
+  const upcoming =
+    nowMs == null
+      ? notAvailable
+      : notAvailable.filter((entry) => isReleaseStillAhead(entry.event, nowMs));
   const recent = items.filter((entry) => entry.event.state === "available");
   const changed = upcoming.filter((entry) => entry.event.previousDate);
   return { upcoming, recent, changed };

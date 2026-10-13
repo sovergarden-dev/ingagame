@@ -1,11 +1,14 @@
-import { CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
+import { CheckCircle2, RefreshCw, Sparkles, WifiOff } from "lucide-react";
 import type { FreshnessStatus as Status } from "@/domain/types";
 import { useI18n } from "@/i18n/I18nProvider";
+import { freshnessMode } from "@/pwa/online";
+import { useOnline } from "@/pwa/use-online";
 import { cn } from "@/lib/utils";
 
 /** Visual-only "instant resume" indicator. No caching logic lives here. */
 export function FreshnessStatus({ status, className }: { status: Status; className?: string }) {
   const { t } = useI18n();
+  const online = useOnline();
 
   const map = {
     fresh: {
@@ -26,7 +29,13 @@ export function FreshnessStatus({ status, className }: { status: Status; classNa
     },
   } as const;
 
-  const view = map[status.state];
+  const view =
+    freshnessMode(online) === "offline"
+      ? {
+          icon: <WifiOff aria-hidden className="size-3.5 text-muted-foreground" />,
+          text: t("offline.catalogue"),
+        }
+      : map[status.state];
 
   return (
     <p

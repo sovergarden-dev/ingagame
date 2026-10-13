@@ -1,8 +1,13 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { RadarEntry } from "@/domain/types";
 import { dayKey, shortDateLabel, shortDayLabel } from "@/domain/release";
-import { matchesPlatformFilter, PLATFORM_FILTERS, type PlatformFilterId } from "@/domain/platforms";
+import {
+  matchesPlatformFilter,
+  PLATFORM_FILTERS,
+  isPlatformFilterId,
+  type PlatformFilterId,
+} from "@/domain/platforms";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { MessageKey } from "@/i18n/messages";
 import { usePreferences } from "@/preferences/PreferencesProvider";
@@ -27,7 +32,19 @@ export function ReleaseRadar({
   const { t, locale } = useI18n();
   const { myPlatforms } = usePreferences();
   const [filter, setFilter] = useState<PlatformFilterId>("all");
+  const [filterReady, setFilterReady] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("inga.radarFilter");
+    if (isPlatformFilterId(stored)) setFilter(stored);
+    setFilterReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!filterReady) return;
+    window.localStorage.setItem("inga.radarFilter", filter);
+  }, [filter, filterReady]);
 
   const groups = useMemo(() => {
     const filtered = entries.filter((e) =>
@@ -62,8 +79,18 @@ export function ReleaseRadar({
             id="radar-heading"
             className="text-2xl font-bold uppercase tracking-tight text-foreground sm:text-3xl"
           >
-            {t("radar.title").split(" ")[0]}{" "}
-            <span className="text-muted-foreground">{t("radar.title").split(" ")[1]}</span>
+            {(() => {
+              const words = t("radar.title").split(" ");
+              const tail = words.at(-1) ?? "";
+              const lead = words.slice(0, -1).join(" ");
+              return lead ? (
+                <>
+                  {lead} <span className="text-muted-foreground">{tail}</span>
+                </>
+              ) : (
+                tail
+              );
+            })()}
           </h2>
           <p className="mt-1 max-w-prose text-sm text-muted-foreground">{t("radar.subtitle")}</p>
         </div>
@@ -114,7 +141,10 @@ export function ReleaseRadar({
       </div>
 
       {groups.length === 0 ? (
-        <EmptyState title={t("empty.title")} body={t("empty.body")} />
+        <EmptyState
+          title={filter === "mine" ? t("radar.emptyPlatforms") : t("empty.title")}
+          body={t("empty.body")}
+        />
       ) : (
         <div
           ref={scroller}

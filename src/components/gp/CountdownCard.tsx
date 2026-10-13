@@ -1,10 +1,14 @@
 import { CalendarPlus, PlayCircle, Star } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import type { Game, ReleaseEvent } from "@/domain/types";
-import { countdownFrom, formatReleaseDate, isCountdownable } from "@/domain/release";
+import { canExportCalendar, releaseEventIcs } from "@/domain/calendar";
+import { countdownFrom, isCountdownable, isReleaseStillAhead } from "@/domain/release";
 import { useNow } from "@/hooks/use-now";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useLibrary } from "@/library/LibraryProvider";
+import { usePreferences } from "@/preferences/PreferencesProvider";
+import { useFormatReleaseDate } from "./use-format-release";
+import { useGameTitle } from "./use-game-title";
 import { Button } from "@/components/ui/button";
 import { PlatformBadge } from "./PlatformBadge";
 import { ReleaseStatusBadge, ReleaseStateBadge } from "./ReleaseStatusBadge";
@@ -30,7 +34,7 @@ export function CountdownUnits({ target }: { target: string }) {
   const now = useNow();
   const parts = now === null ? null : countdownFrom(target, now);
   return (
-    <div className="flex flex-wrap gap-2">
+    <div aria-hidden="true" className="flex flex-wrap gap-2">
       <Unit value={parts ? parts.days : "--"} label={t("countdown.days")} />
       <Unit value={parts ? parts.hours : "--"} label={t("countdown.hours")} />
       <Unit value={parts ? parts.minutes : "--"} label={t("countdown.minutes")} />
@@ -44,15 +48,23 @@ export function CountdownHero({
   game,
   event,
   backdropUrl,
+  trailerUrl,
 }: {
   game: Game;
   event: ReleaseEvent;
   backdropUrl: string;
+  trailerUrl?: string;
 }) {
   const { t, locale } = useI18n();
+  const { spoilerSafe } = usePreferences();
+  const title = useGameTitle(game);
+  const formatWhen = useFormatReleaseDate();
   const { isFollowing, toggleFollow } = useLibrary();
   const following = isFollowing(game.id);
-  const countdownable = isCountdownable(event) && event.state !== "available";
+  const now = useNow();
+  const windowPassed =
+    now !== null && event.state !== "available" && !isReleaseStillAhead(event, now);
+  const countdownable = isCountdownable(event) && event.state !== "available" && !windowPassed;
 
   return (
     <section
@@ -96,12 +108,12 @@ export function CountdownHero({
 
           <h1
             id="hero-title"
-            className="mt-3 text-balance text-4xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl"
+            className="mt-3 break-words text-balance text-4xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl"
           >
-            {game.title}
+            {title}
           </h1>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground sm:text-base">
-            {game.summary}
+            {spoilerSafe ? t("spoiler.hidden") : game.summary}
           </p>
 
           <div className="mt-6">
@@ -114,11 +126,13 @@ export function CountdownHero({
               <p className="rounded-lg border border-border bg-background/55 px-4 py-3 text-sm text-muted-foreground">
                 {event.state === "available"
                   ? t("countdown.availableNow")
-                  : t("countdown.noExactTime")}
+                  : windowPassed
+                    ? t("watchlist.passed")
+                    : t("countdown.noExactTime")}
               </p>
             )}
             <p className="mt-3 text-sm text-muted-foreground">
-              {formatReleaseDate(event.date, event.precision, locale)}
+              {formatWhen(event.date, event.precision)}
             </p>
           </div>
 
@@ -139,14 +153,35 @@ export function CountdownHero({
               <Star className={cn(following && "fill-current")} />
               {following ? t("action.following") : t("action.follow")}
             </Button>
-            <Button variant="glass" size="lg">
-              <PlayCircle />
-              {t("action.trailer")}
-            </Button>
-            <Button variant="glass" size="lg" className="hidden sm:inline-flex">
-              <CalendarPlus />
-              {t("action.addToCalendar")}
-            </Button>
+            {trailerUrl ? (
+              <Button variant="glass" size="lg" asChild>
+                <a href={trailerUrl} target="_blank" rel="noreferrer">
+                  <PlayCircle />
+                  {t("action.trailer")}
+                </a>
+              </Button>
+            ) : null}
+            {canExportCalendar(event) ? (
+              <Button
+                variant="glass"
+                size="lg"
+                className="hidden sm:inline-flex"
+                onClick={() => {
+                  const ics = releaseEventIcs(event, title);
+                  if (!ics) return;
+                  const blob = new Blob([ics], { type: "text/calendar" });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download = `${game.slug}.ics`;
+                  link.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <CalendarPlus />
+                {t("action.addToCalendar")}
+              </Button>
+            ) : null}
             <Button asChild variant="quiet" size="lg">
               <Link to="/game/$slug" params={{ slug: game.slug }}>
                 {t("action.viewDetails")}
@@ -162,6 +197,8 @@ export function CountdownHero({
 /** Compact pinned countdown chip, e.g. in the sidebar or a sticky bar. */
 export function CountdownChip({ game, event }: { game: Game; event: ReleaseEvent }) {
   const { t, locale } = useI18n();
+  const title = useGameTitle(game);
+  const formatWhen = useFormatReleaseDate();
   const now = useNow();
   const parts = now !== null && isCountdownable(event) ? countdownFrom(event.date, now) : null;
 
@@ -181,15 +218,20 @@ export function CountdownChip({ game, event }: { game: Game; event: ReleaseEvent
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground group-hover:text-accent">
-          {game.title}
+          {title}
         </p>
-        <p className="truncate font-mono text-xs tabular-nums text-accent">
-          {parts
-            ? parts.elapsed
+        <p className="truncate font-mono text-xs tabular-nums text-accent" aria-hidden="true">
+          {parts && !parts.elapsed
+            ? t("countdown.compact", {
+                days: parts.days,
+                hours: String(parts.hours).padStart(2, "0"),
+                minutes: String(parts.minutes).padStart(2, "0"),
+              })
+            : event.state === "available"
               ? t("countdown.availableNow")
-              : `${parts.days}d ${String(parts.hours).padStart(2, "0")}h ${String(parts.minutes).padStart(2, "0")}m`
-            : formatReleaseDate(event.date, event.precision, locale)}
+              : formatWhen(event.date, event.precision)}
         </p>
+        <p className="sr-only">{formatWhen(event.date, event.precision)}</p>
       </div>
     </Link>
   );

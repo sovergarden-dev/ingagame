@@ -5,14 +5,19 @@ import { PageShell } from "@/components/gp/PageShell";
 import { FilterChip, Segmented } from "@/components/gp/FilterChip";
 import { GameCard } from "@/components/gp/GameCard";
 import { EmptyState } from "@/components/gp/EmptyState";
-import { GAMES } from "@/domain/mock-data";
-import { PLATFORMS } from "@/domain/platforms";
+import { PanelSkeleton } from "@/components/gp/Skeletons";
+import { discoverGames, sharesHiddenGenre, type DiscoverSort } from "@/domain/discover";
+import { canonicalLinks } from "@/domain/seo";
+import { uniqueGamesFromReleases, freshnessFromFeed } from "@/integrations/content/feed";
+import { useReleasesFeed } from "@/integrations/content/use-content-feed";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { MessageKey } from "@/i18n/messages";
 import type { PlatformFamily } from "@/domain/types";
 import { Input } from "@/components/ui/input";
+import { usePreferences } from "@/preferences/PreferencesProvider";
+import { useHiddenGames } from "@/discover/HiddenGamesProvider";
 
-type SortId = "hype" | "critic" | "title" | "soonest";
+type SortId = DiscoverSort;
 
 const FAMILIES: PlatformFamily[] = ["pc", "playstation", "xbox", "nintendo", "mobile", "vr"];
 
@@ -28,46 +33,52 @@ export const Route = createFileRoute("/discover")({
       { property: "og:title", content: "Discover Games — Inga" },
       { property: "og:description", content: "Browse games by genre, platform and hype." },
     ],
+    links: canonicalLinks("/discover"),
   }),
   component: DiscoverPage,
 });
 
 function DiscoverPage() {
   const { t } = useI18n();
+  const releasesFeed = useReleasesFeed();
+  const catalogue = uniqueGamesFromReleases(releasesFeed.data?.items ?? []);
   const [query, setQuery] = useState("");
   const [genres, setGenres] = useState<string[]>([]);
   const [families, setFamilies] = useState<PlatformFamily[]>([]);
   const [sort, setSort] = useState<SortId>("hype");
+  const [mineOnly, setMineOnly] = useState(false);
+  const hidden = useHiddenGames();
+  const { myPlatforms } = usePreferences();
 
   const allGenres = useMemo(
-    () => [...new Set(GAMES.flatMap((g) => g.genres))].sort().slice(0, 12),
-    [],
+    () => [...new Set(catalogue.flatMap((g) => g.genres))].sort().slice(0, 12),
+    [catalogue],
   );
 
-  const games = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const filtered = GAMES.filter((game) => {
-      if (q && !`${game.title} ${game.developer} ${game.publisher}`.toLowerCase().includes(q))
-        return false;
-      if (genres.length && !game.genres.some((g) => genres.includes(g))) return false;
-      if (families.length && !game.platforms.some((p) => families.includes(PLATFORMS[p].family)))
-        return false;
-      return true;
-    });
-    return [...filtered].sort((a, b) => {
-      if (sort === "hype") return (b.hypeScore ?? 0) - (a.hypeScore ?? 0);
-      if (sort === "critic") return (b.criticScore ?? 0) - (a.criticScore ?? 0);
-      if (sort === "title") return a.title.localeCompare(b.title);
-      const av = a.releaseEvents[0] ? Date.parse(a.releaseEvents[0].date) : Number.MAX_SAFE_INTEGER;
-      const bv = b.releaseEvents[0] ? Date.parse(b.releaseEvents[0].date) : Number.MAX_SAFE_INTEGER;
-      return av - bv;
-    });
-  }, [query, genres, families, sort]);
+  const games = useMemo(
+    () =>
+      discoverGames(catalogue, {
+        query,
+        genres,
+        families,
+        sort,
+        hiddenIds: hidden.ids,
+        hiddenGenres: hidden.genres,
+        ...(mineOnly ? { myPlatformIds: myPlatforms } : {}),
+      }),
+    [catalogue, query, genres, families, sort, hidden.ids, hidden.genres, mineOnly, myPlatforms],
+  );
 
   return (
     <PageShell
       title={t("page.discover.title")}
       description={t("page.discover.subtitle")}
+      freshness={freshnessFromFeed(
+        releasesFeed.data,
+        releasesFeed.isPending,
+        Date.now(),
+        releasesFeed.isError,
+      )}
       toolbar={
         <>
           <div className="relative w-full sm:w-64">
@@ -98,6 +109,9 @@ function DiscoverPage() {
 
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="gp-eyebrow mr-1">{t("filter.platforms")}</span>
+            <FilterChip active={mineOnly} onClick={() => setMineOnly((value) => !value)}>
+              {t("filter.myPlatforms")}
+            </FilterChip>
             {FAMILIES.map((family) => (
               <FilterChip
                 key={family}
@@ -130,13 +144,19 @@ function DiscoverPage() {
             ))}
           </div>
 
-          <span className="ml-auto text-xs text-muted-foreground">
-            {t("discover.results", { count: games.length })}
-          </span>
+          {releasesFeed.isPending && !releasesFeed.data ? null : (
+            <span className="ml-auto text-xs text-muted-foreground">
+              {t("discover.results", { count: games.length })}
+            </span>
+          )}
         </>
       }
     >
-      {games.length ? (
+      {releasesFeed.isPending && !releasesFeed.data ? (
+        <PanelSkeleton />
+      ) : catalogue.length === 0 ? (
+        <EmptyState title={t("feed.empty.title")} body={t("feed.empty.body")} />
+      ) : games.length ? (
         <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {games.map((game) => (
             <GameCard key={game.id} game={game} fluid />
@@ -153,6 +173,7 @@ function DiscoverPage() {
                 setQuery("");
                 setGenres([]);
                 setFamilies([]);
+                setMineOnly(false);
               }}
               className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:border-accent hover:text-accent"
             >

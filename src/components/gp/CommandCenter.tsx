@@ -1,18 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  BellRing,
-  CalendarPlus,
-  Compass,
-  Gift,
-  Home,
-  Newspaper,
-  Radar,
-  ScanSearch,
-  Settings,
-  Star,
-  Tag,
-} from "lucide-react";
+import { Compass, Gift, Home, Newspaper, Radar, Settings, Star, Tag } from "lucide-react";
 import {
   CommandDialog,
   CommandEmpty,
@@ -22,10 +10,15 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { formatReleaseDate } from "@/domain/release";
+import { isDefaultRadarEvent } from "@/domain/editions";
+import { radarWinners } from "@/domain/conflicts";
+import { useFormatReleaseDate } from "./use-format-release";
+import { useNow } from "@/hooks/use-now";
 import { splitReleaseItems, uniqueGamesFromReleases } from "@/integrations/content/feed";
 import { useReleasesFeed } from "@/integrations/content/use-content-feed";
 import { useI18n } from "@/i18n/I18nProvider";
+import { usePreferences } from "@/preferences/PreferencesProvider";
+import { displayTitle, searchHaystack } from "@/domain/title";
 
 const NAV_ITEMS = [
   { to: "/", labelKey: "nav.home", Icon: Home },
@@ -38,7 +31,7 @@ const NAV_ITEMS = [
   { to: "/settings", labelKey: "nav.settings", Icon: Settings },
 ] as const;
 
-/** Visual shell for the future command center. No search backend here. */
+/** Search across the current catalogue and routes. Actions without a target stay out. */
 export function CommandCenter({
   open,
   onOpenChange,
@@ -46,12 +39,19 @@ export function CommandCenter({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
+  const { titleLanguage } = usePreferences();
+  const formatWhen = useFormatReleaseDate();
   const navigate = useNavigate();
   const releasesFeed = useReleasesFeed();
   const releaseEntries = releasesFeed.data?.items ?? [];
   const games = uniqueGamesFromReleases(releaseEntries).slice(0, 6);
-  const upcoming = splitReleaseItems(releaseEntries).upcoming.slice(0, 4);
+  const now = useNow();
+  const upcoming = radarWinners(
+    splitReleaseItems(releaseEntries, now).upcoming.filter((entry) =>
+      isDefaultRadarEvent(entry.event),
+    ),
+  ).slice(0, 4);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -70,20 +70,20 @@ export function CommandCenter({
   }
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange}>
+    <CommandDialog open={open} onOpenChange={onOpenChange} title={t("command.title")}>
       <CommandInput placeholder={t("search.placeholder")} />
-      <CommandList className="max-h-[60vh]">
+      <CommandList label={t("command.title")} className="max-h-[60vh]">
         <CommandEmpty>{t("command.empty")}</CommandEmpty>
 
         <CommandGroup heading={t("command.games")}>
           {games.map((game) => (
             <CommandItem
               key={game.id}
-              value={`game ${game.title}`}
+              value={`game ${searchHaystack(game)}`}
               onSelect={() => go("/game/$slug", { slug: game.slug })}
             >
               <img src={game.coverUrl} alt="" className="mr-2 size-6 rounded object-cover" />
-              <span>{game.title}</span>
+              <span>{displayTitle(game, titleLanguage)}</span>
               <span className="ml-auto text-xs text-muted-foreground">{game.developer}</span>
             </CommandItem>
           ))}
@@ -95,13 +95,13 @@ export function CommandCenter({
           {upcoming.map(({ game, event }) => (
             <CommandItem
               key={event.id}
-              value={`release ${game.title}`}
+              value={`release ${searchHaystack(game)}`}
               onSelect={() => go("/game/$slug", { slug: game.slug })}
             >
               <Radar className="mr-2 size-4 text-accent" />
-              <span>{game.title}</span>
+              <span>{displayTitle(game, titleLanguage)}</span>
               <span className="ml-auto text-xs text-muted-foreground">
-                {formatReleaseDate(event.date, event.precision, locale)}
+                {formatWhen(event.date, event.precision)}
               </span>
             </CommandItem>
           ))}
@@ -120,27 +120,6 @@ export function CommandCenter({
               </CommandItem>
             );
           })}
-        </CommandGroup>
-
-        <CommandSeparator />
-
-        <CommandGroup heading={t("command.actions")}>
-          <CommandItem value="scan new releases">
-            <ScanSearch className="mr-2 size-4" />
-            {t("command.action.scan")}
-          </CommandItem>
-          <CommandItem value="add to wishlist">
-            <Star className="mr-2 size-4" />
-            {t("command.action.wishlist")}
-          </CommandItem>
-          <CommandItem value="add to calendar">
-            <CalendarPlus className="mr-2 size-4" />
-            {t("command.action.calendar")}
-          </CommandItem>
-          <CommandItem value="alerts and notifications" onSelect={() => go("/settings")}>
-            <BellRing className="mr-2 size-4" />
-            {t("command.action.alerts")}
-          </CommandItem>
         </CommandGroup>
       </CommandList>
     </CommandDialog>

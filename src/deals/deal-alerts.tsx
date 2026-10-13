@@ -5,6 +5,10 @@ import type { Deal } from "@/domain/types";
 import { useDealsFeed } from "@/integrations/content/use-content-feed";
 import { useNow } from "@/hooks/use-now";
 import { useI18n } from "@/i18n/I18nProvider";
+import { displayTitle } from "@/domain/title";
+import { usePreferences } from "@/preferences/PreferencesProvider";
+import { shouldDeliverAlert } from "@/domain/watch-controls";
+import { useWatchControls } from "@/watch/WatchControlsProvider";
 
 const SEEN_KEY = "gamepulse.dealAlerts.seen";
 
@@ -36,6 +40,7 @@ function writeSeen(ids: string[]) {
 /** Deals whose end date has passed, newest expiry first. */
 export function useExpiredDeals(): DealAlert[] {
   const now = useNow();
+  const { titleLanguage } = usePreferences();
   const { data } = useDealsFeed();
   return useMemo(() => {
     const deals = data?.items ?? [];
@@ -47,10 +52,10 @@ export function useExpiredDeals(): DealAlert[] {
         if (expiredAt === null) return [];
         const game = deal.game;
         if (!game) return [];
-        return [{ deal, title: game.title, slug: game.slug, expiredAt }];
+        return [{ deal, title: displayTitle(game, titleLanguage), slug: game.slug, expiredAt }];
       })
       .sort((a, b) => b.expiredAt - a.expiredAt);
-  }, [data?.items, now]);
+  }, [data?.items, now, titleLanguage]);
 }
 
 const DealAlertsContext = createContext<DealAlert[]>([]);
@@ -62,6 +67,7 @@ export function useDealAlerts() {
 /** Watches deal expiry and raises a toast the first time each deal ends. */
 export function DealAlertsProvider({ children }: { children: React.ReactNode }) {
   const { t } = useI18n();
+  const watch = useWatchControls();
   const expired = useExpiredDeals();
   const [ready, setReady] = useState(false);
   const seenRef = useRef<Set<string>>(new Set());
@@ -72,8 +78,10 @@ export function DealAlertsProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    if (!ready) return;
-    const fresh = expired.filter((a) => !seenRef.current.has(a.deal.id));
+    if (!ready || !watch.hydrated) return;
+    const fresh = expired.filter(
+      (a) => !seenRef.current.has(a.deal.id) && shouldDeliverAlert(watch, a.deal.gameId),
+    );
     if (fresh.length === 0) return;
     fresh.forEach((alert) => {
       seenRef.current.add(alert.deal.id);
@@ -82,7 +90,7 @@ export function DealAlertsProvider({ children }: { children: React.ReactNode }) 
       });
     });
     writeSeen([...seenRef.current]);
-  }, [expired, ready, t]);
+  }, [expired, ready, t, watch]);
 
   return <DealAlertsContext.Provider value={expired}>{children}</DealAlertsContext.Provider>;
 }

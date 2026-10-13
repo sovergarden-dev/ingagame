@@ -11,6 +11,7 @@ export function FeedGate({
   result,
   onRetry,
   showStaleBanner = true,
+  showEmpty = true,
   children,
 }: {
   isPending: boolean;
@@ -19,6 +20,8 @@ export function FeedGate({
   onRetry: () => void;
   /** Hide the last-good retry strip when a sibling gate already shows it. */
   showStaleBanner?: boolean;
+  /** Let a contextual child render the successful-but-empty state. */
+  showEmpty?: boolean;
   children: ReactNode;
 }) {
   const { t } = useI18n();
@@ -45,7 +48,7 @@ export function FeedGate({
     );
   }
 
-  if (!items.length) {
+  if (!items.length && showEmpty) {
     return <EmptyState title={t("feed.empty.title")} body={t("feed.empty.body")} />;
   }
 

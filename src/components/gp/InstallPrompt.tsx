@@ -6,7 +6,25 @@ import { usePwaInstall } from "@/pwa/usePwaInstall";
 /** Non-blocking install card — only shows when the browser offers a real prompt. */
 export function InstallPrompt() {
   const { t } = useI18n();
-  const { canInstall, dismissed, install, dismiss } = usePwaInstall();
+  const { canInstall, dismissed, install, dismiss, updateReady, applyUpdate } = usePwaInstall();
+
+  if (updateReady) {
+    return (
+      <div
+        role="dialog"
+        aria-label={t("pwa.update")}
+        className="gp-panel fixed bottom-20 left-1/2 z-50 w-[min(26rem,calc(100vw-1.5rem))] -translate-x-1/2 p-4 shadow-lg md:bottom-6 md:left-auto md:right-6 md:translate-x-0"
+      >
+        <p className="font-display text-sm font-bold text-foreground">{t("pwa.update")}</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t("pwa.updateBody")}</p>
+        <div className="mt-3">
+          <Button size="sm" onClick={applyUpdate}>
+            {t("pwa.reload")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!canInstall || dismissed) return null;
 

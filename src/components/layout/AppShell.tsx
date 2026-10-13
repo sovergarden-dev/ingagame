@@ -2,9 +2,11 @@ import { useState, type ReactNode } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/auth/AuthProvider";
+import { usePreferences } from "@/preferences/PreferencesProvider";
+import { useAllowViewTransition } from "@/pwa/use-view-transition";
+import { allowsCloudSync } from "@/domain/privacy";
 
 import {
-  Bell,
   ChevronLeft,
   ChevronRight,
   Globe,
@@ -32,12 +34,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALES, type LocaleCode } from "@/i18n/locales";
-import { usePreferences } from "@/preferences/PreferencesProvider";
 import { PLATFORM_LIST } from "@/domain/platforms";
 import type { PlatformId } from "@/domain/types";
 import { cn } from "@/lib/utils";
 
-function NavList({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+function NavList({
+  collapsed,
+  onNavigate,
+  viewTransition,
+}: {
+  collapsed: boolean;
+  onNavigate?: () => void;
+  viewTransition: boolean;
+}) {
   const { t } = useI18n();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
@@ -50,6 +59,7 @@ function NavList({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: (
           <Link
             key={to}
             to={to as never}
+            viewTransition={viewTransition}
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             aria-label={label}
@@ -79,6 +89,7 @@ function NavList({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: (
 function SidebarFooter({ collapsed }: { collapsed: boolean }) {
   const { t } = useI18n();
   const { user, signOut } = useAuth();
+  const { privacy } = usePreferences();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -144,7 +155,7 @@ function SidebarFooter({ collapsed }: { collapsed: boolean }) {
                 {t("auth.signIn")}
               </span>
               <span className="block truncate text-xs text-muted-foreground">
-                {t("auth.subtitle")}
+                {allowsCloudSync(privacy) ? t("auth.subtitle") : t("auth.cloudOff")}
               </span>
             </span>
           )}
@@ -222,9 +233,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [commandOpen, setCommandOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const viewTransition = useAllowViewTransition();
 
   return (
     <div className="min-h-screen bg-background">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:text-foreground"
+      >
+        {t("nav.skip")}
+      </a>
       <CommandCenter open={commandOpen} onOpenChange={setCommandOpen} />
 
       {/* Desktop sidebar */}
@@ -240,7 +258,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
         </div>
         <div className="flex-1 overflow-y-auto">
-          <NavList collapsed={collapsed} />
+          <NavList collapsed={collapsed} viewTransition={viewTransition} />
         </div>
         <SidebarFooter collapsed={collapsed} />
         <button
@@ -282,7 +300,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Link to="/" onClick={() => setMobileNavOpen(false)} className="mb-5 block">
                   <Logo />
                 </Link>
-                <NavList collapsed={false} onNavigate={() => setMobileNavOpen(false)} />
+                <NavList
+                  collapsed={false}
+                  viewTransition={viewTransition}
+                  onNavigate={() => setMobileNavOpen(false)}
+                />
                 <div className="mt-4">
                   <SidebarFooter collapsed={false} />
                 </div>
@@ -313,20 +335,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="hidden sm:block">
                 <PlatformsMenu />
               </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t("topbar.notifications")}
-                className="relative"
-              >
-                <Bell />
-                <span
-                  aria-hidden
-                  className="absolute right-2 top-2 size-1.5 rounded-full bg-accent"
-                />
-              </Button>
               <Link
                 to="/settings"
+                viewTransition={viewTransition}
                 aria-label={t("nav.settings")}
                 className="flex size-9 items-center justify-center rounded-full border border-border bg-surface-2 text-muted-foreground transition-colors hover:border-accent hover:text-accent"
               >
@@ -336,7 +347,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1800px] px-3 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-4 sm:px-5 sm:pt-6 md:pb-12">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-[1800px] px-3 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-4 sm:px-5 sm:pt-6 md:pb-12"
+        >
           {children}
         </main>
 
@@ -362,6 +377,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <li key={to}>
                 <Link
                   to={to as never}
+                  viewTransition={viewTransition}
                   data-nav-to={to}
                   aria-current={active ? "page" : undefined}
                   aria-label={label}

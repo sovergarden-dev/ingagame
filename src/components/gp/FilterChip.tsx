@@ -19,7 +19,7 @@ export function FilterChip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "h-7 rounded-full border px-2.5 text-[11px] font-medium transition-colors",
+        "inline-flex h-11 items-center rounded-full border px-3 text-xs font-medium transition-colors sm:h-7 sm:px-2.5 sm:text-[11px]",
         active
           ? "border-accent bg-accent-soft text-accent"
           : "border-border text-muted-foreground hover:border-border-strong hover:text-foreground",
@@ -53,7 +53,7 @@ export function Segmented<T extends string>({
           aria-selected={value === id}
           onClick={() => onChange(id)}
           className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors",
+            "inline-flex h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors sm:h-8",
             value === id
               ? "bg-accent text-accent-foreground"
               : "text-muted-foreground hover:bg-surface-2 hover:text-foreground",

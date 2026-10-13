@@ -62,6 +62,8 @@ export interface Game {
   releaseEvents: ReleaseEvent[];
   hypeScore?: number;
   criticScore?: number;
+  /** Official stills. Absent means the gallery stays empty. */
+  screenshots?: Screenshot[];
 }
 
 export interface RadarEntry {
@@ -104,6 +106,12 @@ export interface Article {
   game?: Game;
 }
 
+export interface Screenshot {
+  id: string;
+  url: string;
+  alt: string;
+}
+
 export interface Video {
   id: string;
   gameId: string;
@@ -111,6 +119,8 @@ export interface Video {
   kind: "trailer" | "gameplay" | "review";
   thumbnailUrl: string;
   durationSeconds: number;
+  /** Playable URL. Absent means the row is not a trailer control. */
+  url?: string;
 }
 
 export interface RegionLaunch {

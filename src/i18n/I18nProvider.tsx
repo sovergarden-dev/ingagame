@@ -1,6 +1,14 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { CATALOGUES, en, type MessageKey } from "./messages";
-import { DEFAULT_LOCALE, type LocaleCode } from "./locales";
+import { DEFAULT_LOCALE, isLocaleCode, type LocaleCode } from "./locales";
 import { decodeUiText } from "@/lib/ui-text";
 
 interface I18nValue {
@@ -14,6 +22,15 @@ const STORAGE_KEY = "gamepulse.locale";
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<LocaleCode>(DEFAULT_LOCALE);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (isLocaleCode(stored)) setLocaleState(stored);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   const setLocale = useCallback((next: LocaleCode) => {
     setLocaleState(next);

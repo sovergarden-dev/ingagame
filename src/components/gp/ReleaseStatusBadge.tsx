@@ -53,7 +53,7 @@ export function ReleaseStatusBadge({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" aria-label={`${label} — why?`}>
+        <button type="button" aria-label={t("confidence.why", { label })}>
           {badge}
         </button>
       </PopoverTrigger>
