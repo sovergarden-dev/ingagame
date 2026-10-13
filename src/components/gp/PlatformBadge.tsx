@@ -1,6 +1,7 @@
 import { Gamepad2, Headset, Monitor, Smartphone } from "lucide-react";
-import { PLATFORMS } from "@/domain/platforms";
+import { PLATFORMS, platformMessageKey } from "@/domain/platforms";
 import type { PlatformId } from "@/domain/types";
+import { useI18n } from "@/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 const ICONS = {
@@ -24,11 +25,14 @@ export function PlatformBadge({
   className?: string;
 }) {
   const meta = PLATFORMS[platform];
+  const { t } = useI18n();
   if (!meta) return null;
   const Icon = ICONS[meta.family];
+  const labelKey = platformMessageKey(platform);
+  const label = labelKey ? t(labelKey) : meta.name;
   return (
     <span
-      title={meta.name}
+      title={label}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-2/70 font-medium text-muted-foreground",
         size === "xs" && "h-5 px-1.5 text-[10px]",
@@ -38,7 +42,7 @@ export function PlatformBadge({
       )}
     >
       <Icon aria-hidden className={size === "md" ? "size-4" : "size-3"} />
-      <span className={showLabel ? "" : "sr-only"}>{meta.name}</span>
+      <span className={showLabel ? "" : "sr-only"}>{label}</span>
       {!showLabel && <span aria-hidden>{meta.shortLabel}</span>}
     </span>
   );

@@ -10,3 +10,7 @@ export const LOCALES = [
 
 export type LocaleCode = (typeof LOCALES)[number]["code"];
 export const DEFAULT_LOCALE: LocaleCode = "en";
+
+export function isLocaleCode(value: string | null): value is LocaleCode {
+  return LOCALES.some((locale) => locale.code === value);
+}

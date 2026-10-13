@@ -1,15 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { canonicalLinks } from "@/domain/seo";
 import { Gift, Timer } from "lucide-react";
 import { PageShell } from "@/components/gp/PageShell";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { EmptyState } from "@/components/gp/EmptyState";
+import { PanelSkeleton } from "@/components/gp/Skeletons";
 import { PlatformBadgeList } from "@/components/gp/PlatformBadge";
 import { WishlistButton } from "@/components/gp/WishlistButton";
 import { GIVEAWAYS, getGame } from "@/domain/mock-data";
+import { freshnessFromFeed, showFixtureShelves } from "@/integrations/content/feed";
+import { useReleasesFeed } from "@/integrations/content/use-content-feed";
 import { hasEnded, isEndingSoon } from "@/domain/deal";
 import { countdownFrom } from "@/domain/release";
 import { useNow } from "@/hooks/use-now";
 import { useI18n } from "@/i18n/I18nProvider";
+import { useGameTitle } from "@/components/gp/use-game-title";
 import type { Giveaway } from "@/domain/types";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -26,6 +31,7 @@ export const Route = createFileRoute("/free")({
       { property: "og:title", content: "Free Games & Giveaways — Inga" },
       { property: "og:description", content: "Games free to claim right now, with expiry times." },
     ],
+    links: canonicalLinks("/free"),
   }),
   component: FreePage,
 });
@@ -38,6 +44,7 @@ function GiveawayCard({ giveaway }: { giveaway: Giveaway }) {
   const { t, locale } = useI18n();
   const now = useNow();
   const game = getGame(giveaway.gameId);
+  const title = useGameTitle(game ?? { title: "" });
   if (!game) return null;
 
   const parts = now === null ? null : countdownFrom(giveaway.endsAt, now);
@@ -60,7 +67,7 @@ function GiveawayCard({ giveaway }: { giveaway: Giveaway }) {
               expired ? "bg-destructive text-destructive-foreground" : "bg-success text-background",
             )}
           >
-            {expired ? t("free.expired") : "FREE"}
+            {expired ? t("free.expired") : t("free.badge")}
           </span>
         </div>
       </Link>
@@ -69,7 +76,7 @@ function GiveawayCard({ giveaway }: { giveaway: Giveaway }) {
           <div className="min-w-0">
             <Link to="/game/$slug" params={{ slug: game.slug }}>
               <h3 className="truncate font-semibold text-foreground transition-colors hover:text-accent">
-                {game.title}
+                {title}
               </h3>
             </Link>
             <p className="truncate text-xs text-muted-foreground">{giveaway.store}</p>
@@ -83,11 +90,18 @@ function GiveawayCard({ giveaway }: { giveaway: Giveaway }) {
             {expired ? (
               t("free.expired")
             ) : (
-              <span className="font-mono tabular-nums text-foreground">
-                {parts
-                  ? `${parts.days}d ${String(parts.hours).padStart(2, "0")}h ${String(parts.minutes).padStart(2, "0")}m`
-                  : "--"}
-              </span>
+              <>
+                <span aria-hidden="true" className="font-mono tabular-nums text-foreground">
+                  {parts
+                    ? t("countdown.compact", {
+                        days: parts.days,
+                        hours: String(parts.hours).padStart(2, "0"),
+                        minutes: String(parts.minutes).padStart(2, "0"),
+                      })
+                    : "--"}
+                </span>
+                <span className="sr-only">{giveaway.endsAt}</span>
+              </>
             )}
           </span>
           {giveaway.worth !== undefined && !expired && (
@@ -104,20 +118,37 @@ function GiveawayCard({ giveaway }: { giveaway: Giveaway }) {
 function FreePage() {
   const { t } = useI18n();
   const now = useNow();
+  const releasesFeed = useReleasesFeed();
+  const fixtures = showFixtureShelves(releasesFeed.data?.source);
+  const giveaways = fixtures ? GIVEAWAYS : [];
 
-  const expiredList = GIVEAWAYS.filter((g) => hasEnded(g.endsAt, now));
-  const soon = GIVEAWAYS.filter((g) => isEndingSoon(g.endsAt, now));
+  const expiredList = giveaways.filter((g) => hasEnded(g.endsAt, now));
+  const soon = giveaways.filter((g) => isEndingSoon(g.endsAt, now));
   const soonIds = new Set(soon.map((g) => g.id));
-  const rest = GIVEAWAYS.filter((g) => !hasEnded(g.endsAt, now) && !soonIds.has(g.id));
+  const rest = giveaways.filter((g) => !hasEnded(g.endsAt, now) && !soonIds.has(g.id));
+  const freshness = freshnessFromFeed(
+    releasesFeed.data,
+    releasesFeed.isPending,
+    Date.now(),
+    releasesFeed.isError,
+  );
+
+  const waiting = releasesFeed.isPending && !releasesFeed.data;
 
   return (
     <PageShell
       title={t("page.free.title")}
       description={t("page.free.subtitle")}
-      freshness={{ state: "fresh", minutesAgo: 2 }}
+      freshness={freshness}
     >
-      {GIVEAWAYS.length === 0 ? (
-        <EmptyState title={t("common.noResults")} icon={<Gift aria-hidden className="size-5" />} />
+      {waiting ? (
+        <PanelSkeleton />
+      ) : !fixtures ? (
+        <EmptyState
+          title={t("feed.empty.title")}
+          body={t("feed.empty.body")}
+          icon={<Gift aria-hidden className="size-5" />}
+        />
       ) : (
         <div className="space-y-8">
           {soon.length > 0 && (

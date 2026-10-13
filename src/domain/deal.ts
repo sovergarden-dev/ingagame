@@ -1,3 +1,5 @@
+import type { PlatformId } from "./types.ts";
+
 /** Milliseconds of `endsAt`, or null when the deal has no usable expiry. */
 export function parseDealEndMs(endsAt: string | undefined): number | null {
   if (!endsAt) return null;
@@ -18,6 +20,21 @@ export function hasEnded(endsAt: string | undefined, now: number | null): boolea
 
 export const isDealExpired = hasEnded;
 
+/** Deals still on sale. A missing clock keeps the list unchanged so SSR matches. */
+export function liveDeals<T extends { endsAt?: string }>(deals: T[], now: number | null): T[] {
+  if (now === null) return deals;
+  return deals.filter((deal) => !isDealExpired(deal.endsAt, now));
+}
+
+/** Keeps a deal when its game is on one of the selected platforms. A deal with no game is left out. */
+export function dealsForPlatforms<T extends { game?: { platforms: PlatformId[] } }>(
+  deals: T[],
+  platformIds: PlatformId[],
+): T[] {
+  const selected = new Set(platformIds);
+  return deals.filter((deal) => deal.game?.platforms.some((platform) => selected.has(platform)));
+}
+
 export const ENDING_SOON_MS = 72 * 3_600_000;
 
 /** Still active and within the ending-soon window. Expired items never qualify. */
@@ -30,4 +47,27 @@ export function isEndingSoon(
   const ms = parseDealEndMs(endsAt);
   if (ms === null) return false;
   return ms - now < windowMs;
+}
+
+function nonBlank(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized || undefined;
+}
+
+/**
+ * Matches canonical IDs first. Slug is only a fallback when the record carries no ID,
+ * so a stale or conflicting ID cannot leak an item into another game's detail page.
+ */
+export function dealsForGame<T extends { gameId: string; game?: { id?: string; slug?: string } }>(
+  deals: T[],
+  game: { id?: string; slug?: string },
+): T[] {
+  const targetId = nonBlank(game.id);
+  const targetSlug = nonBlank(game.slug);
+  if (!targetId && !targetSlug) return [];
+  return deals.filter((deal) => {
+    const recordId = nonBlank(deal.gameId) ?? nonBlank(deal.game?.id);
+    if (recordId) return targetId === recordId;
+    return targetSlug !== undefined && nonBlank(deal.game?.slug) === targetSlug;
+  });
 }

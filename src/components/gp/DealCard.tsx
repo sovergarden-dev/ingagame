@@ -3,6 +3,7 @@ import type { Deal } from "@/domain/types";
 import { isDealExpired } from "@/domain/deal";
 import { useNow } from "@/hooks/use-now";
 import { useI18n } from "@/i18n/I18nProvider";
+import { useGameTitle } from "./use-game-title";
 import { cn } from "@/lib/utils";
 
 function money(value: number, currency: string, locale: string) {
@@ -21,6 +22,7 @@ export function DealCard({
   className?: string;
 }) {
   const game = deal.game;
+  const title = useGameTitle(game ?? { title: deal.store });
   const now = useNow();
   const { t } = useI18n();
   const expired = isDealExpired(deal.endsAt, now);
@@ -37,7 +39,6 @@ export function DealCard({
       >
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">{deal.store}</p>
-          <p className="truncate text-xs text-muted-foreground">{deal.gameId}</p>
         </div>
         <span
           className={cn(
@@ -83,7 +84,7 @@ export function DealCard({
           {discountLabel}
         </span>
         <div className="absolute inset-x-3 bottom-2">
-          <p className="truncate text-sm font-semibold text-foreground">{game.title}</p>
+          <p className="truncate text-sm font-semibold text-foreground">{title}</p>
           <p className="text-xs">
             <span className="font-semibold text-foreground">
               {money(deal.priceCurrent, deal.currency, locale)}
@@ -117,7 +118,7 @@ export function DealCard({
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground group-hover:text-accent">
-          {game.title}
+          {title}
         </p>
         <p className="truncate text-xs text-muted-foreground">{deal.store}</p>
       </div>

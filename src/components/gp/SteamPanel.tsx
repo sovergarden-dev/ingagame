@@ -8,6 +8,8 @@ import { useSteam } from "@/integrations/steam/SteamProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { getGame } from "@/domain/mock-data";
+import { displayTitle } from "@/domain/title";
+import { usePreferences } from "@/preferences/PreferencesProvider";
 import type { MessageKey } from "@/i18n/messages";
 
 function hours(minutes: number) {
@@ -16,6 +18,7 @@ function hours(minutes: number) {
 
 export function SteamPanel() {
   const { t } = useI18n();
+  const { titleLanguage } = usePreferences();
   const { user } = useAuth();
   const { status, snapshot, errorCode, mock, connect, resync, disconnect } = useSteam();
   const [handle, setHandle] = useState("");
@@ -90,7 +93,7 @@ export function SteamPanel() {
                       className="size-9 shrink-0 rounded-md border border-border object-cover"
                     />
                     <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                      {game.title}
+                      {displayTitle(game, titleLanguage)}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {hours(owned.playtimeMinutes)}h

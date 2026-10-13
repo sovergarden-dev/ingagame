@@ -9,9 +9,11 @@ import {
   parseContentFeedResponse,
   radarReferenceIso,
   requireFeedSuccess,
+  showFixtureShelves,
   selectArticleItems,
   selectDealItems,
   selectReleaseItems,
+  devMockIfUnrenderable,
 } from "./feed.ts";
 
 describe("contentFeedUrl", () => {
@@ -46,6 +48,15 @@ describe("allowMockContentFeed", () => {
   });
 });
 
+describe("showFixtureShelves", () => {
+  it("shows hardcoded shelves only while the catalogue source is mock", () => {
+    assert.equal(showFixtureShelves("mock"), true);
+    assert.equal(showFixtureShelves("server"), false);
+    assert.equal(showFixtureShelves("empty"), false);
+    assert.equal(showFixtureShelves(undefined), false);
+  });
+});
+
 describe("parseContentFeedResponse", () => {
   it("reads items and fetchedAt and ignores unknown keys", () => {
     const parsed = parseContentFeedResponse({
@@ -57,6 +68,37 @@ describe("parseContentFeedResponse", () => {
       items: [{ id: "n1" }],
       fetchedAt: "2026-09-07T00:00:00.000Z",
     });
+  });
+});
+
+describe("devMockIfUnrenderable", () => {
+  it("keeps a renderable server catalogue", () => {
+    const kept = devMockIfUnrenderable(
+      { items: ["live"], fetchedAt: "2026-09-07T00:00:00.000Z", source: "server", status: "ok" },
+      ["mock"],
+      { DEV: true },
+    );
+    assert.deepEqual(kept.items, ["live"]);
+  });
+
+  it("uses DEV mock when the server rows are not renderable", () => {
+    const kept = devMockIfUnrenderable(
+      { items: [], fetchedAt: "2026-09-07T00:00:00.000Z", source: "server", status: "empty" },
+      ["mock"],
+      { DEV: true },
+    );
+    assert.equal(kept.source, "mock");
+    assert.deepEqual(kept.items, ["mock"]);
+  });
+
+  it("stays empty in production", () => {
+    const kept = devMockIfUnrenderable(
+      { items: [], fetchedAt: "2026-09-07T00:00:00.000Z", source: "server", status: "empty" },
+      ["mock"],
+      { DEV: false, PROD: true },
+    );
+    assert.equal(kept.source, "server");
+    assert.deepEqual(kept.items, []);
   });
 });
 
@@ -91,6 +133,7 @@ describe("selectReleaseItems", () => {
         event: { id: "e1", state: "upcoming", platforms: ["pc"] },
       },
       { game, event },
+      { game, event: { ...event, id: "e-mismatch", gameId: "g-other" } },
       { game: "nope", event: { id: "e2" } },
     ]);
     assert.equal(kept.length, 1);
@@ -132,6 +175,59 @@ describe("selectDealItems / selectArticleItems", () => {
         { id: "a1", title: "Hello", source: "Wire", publishedAt: "2026-09-01T00:00:00.000Z" },
       ]).map((a) => a.id),
       ["a1"],
+    );
+  });
+
+  it("drops embedded game snapshots that contradict the item game ID", () => {
+    const event = {
+      id: "event-g1",
+      gameId: "g1",
+      date: "2026-09-10T00:00:00.000Z",
+      precision: "date",
+      confidence: "confirmed",
+      kind: "full",
+      state: "upcoming",
+      platforms: ["pc"],
+    };
+    const game = {
+      id: "g1",
+      slug: "game-one",
+      title: "Game One",
+      developer: "Studio",
+      publisher: "Publisher",
+      summary: "Summary",
+      genres: ["Adventure"],
+      coverUrl: "https://example.test/game-one.jpg",
+      platforms: ["pc"],
+      releaseEvents: [event],
+    };
+    assert.deepEqual(
+      selectDealItems([
+        {
+          id: "deal-conflict",
+          gameId: "g2",
+          store: "Steam",
+          priceCurrent: 1,
+          priceBase: 2,
+          discountPercent: 50,
+          currency: "USD",
+          game,
+        },
+      ]),
+      [],
+    );
+    assert.deepEqual(
+      selectArticleItems([
+        {
+          id: "article-conflict",
+          gameId: "g2",
+          title: "Mismatch",
+          source: "Wire",
+          publishedAt: "2026-09-01T00:00:00.000Z",
+          game,
+        },
+      ]),
+      [],
     );
   });
 });
