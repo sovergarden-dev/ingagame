@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
+  fetchSteamOwnedGames,
   fetchSteamPersona,
   handleSteamConnect,
   verifySteamOpenId,
@@ -99,6 +100,52 @@ function createDeps(): SteamConnectDeps {
     },
     verifyOpenId: (params) => verifySteamOpenId(params),
     fetchPersona: (steamId) => fetchSteamPersona(steamId, steamApiKey || null),
+    claimSync: async (userId) => {
+      const { data, error } = await supabase.rpc("claim_steam_sync", {
+        p_user_id: userId,
+      });
+      if (error) throw error;
+      const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+      if (!row) {
+        return {
+          claimed: false,
+          attemptId: null,
+          steamId: null,
+          linkRevision: null,
+          currentStatus: "unlinked",
+          ownedAppIds: null,
+          syncedAt: null,
+          retryAfterSeconds: 0,
+        };
+      }
+      return {
+        claimed: Boolean(row["claimed"]),
+        attemptId: (row["attempt_id"] as string) ?? null,
+        steamId: (row["steam_id"] as string) ?? null,
+        linkRevision: (row["link_revision"] as string) ?? null,
+        currentStatus: (row["current_status"] as string) ?? "idle",
+        ownedAppIds: Array.isArray(row["owned_app_ids"])
+          ? (row["owned_app_ids"] as unknown[]).map(Number)
+          : null,
+        syncedAt: (row["synced_at"] as string) ?? null,
+        retryAfterSeconds:
+          typeof row["retry_after_seconds"] === "number" ? row["retry_after_seconds"] : 0,
+      };
+    },
+    finalizeSync: async (params) => {
+      const { data, error } = await supabase.rpc("finalize_steam_sync", {
+        p_user_id: params.userId,
+        p_steam_id: params.steamId,
+        p_link_revision: params.linkRevision,
+        p_attempt_id: params.attemptId,
+        p_sync_status: params.syncStatus,
+        p_owned_app_ids: params.ownedAppIds,
+        p_game_count: params.gameCount,
+      });
+      if (error) throw error;
+      return Boolean(data);
+    },
+    fetchOwnedGames: (steamId) => fetchSteamOwnedGames(steamId, steamApiKey || null),
   };
 }
 

@@ -15,19 +15,24 @@ import {
   allowMockSteam,
   confirmSteamConnect,
   startSteamConnect,
+  syncSteamLibrary,
   toPublicSteamProfile,
   type SteamPublicProfile,
 } from "./client";
 import type { SteamLibrarySnapshot } from "./mock";
 
 export type SteamStatus = "disconnected" | "connecting" | "connected" | "error";
+export type SteamSyncStatus = "idle" | "syncing" | "synced" | "unavailable" | "failed";
 
-interface SteamValue {
+export interface SteamValue {
   status: SteamStatus;
   snapshot: SteamLibrarySnapshot | null;
   publicProfile: SteamPublicProfile;
   errorCode: string | null;
   ownedGameIds: string[];
+  ownedAppIds: number[] | null;
+  syncStatus: SteamSyncStatus;
+  lastSyncedAt: string | null;
   mock: boolean;
   owns: (gameId: string) => boolean;
   connect: (handle?: string) => Promise<void>;
@@ -38,8 +43,16 @@ interface SteamValue {
 const SteamContext = createContext<SteamValue | null>(null);
 const STORAGE_KEY = "gamepulse.steam";
 
-function snapshotFromPublic(profile: SteamPublicProfile): SteamLibrarySnapshot | null {
+function snapshotFromPublic(
+  profile: SteamPublicProfile,
+  appIds?: number[] | null,
+  syncedAt?: string | null,
+): SteamLibrarySnapshot | null {
   if (!profile.connected || !profile.steamId) return null;
+  const ownedGames = (appIds ?? []).map((appId) => ({
+    gameId: String(appId),
+    playtimeMinutes: 0,
+  }));
   return {
     profile: {
       steamId: profile.steamId,
@@ -48,9 +61,9 @@ function snapshotFromPublic(profile: SteamPublicProfile): SteamLibrarySnapshot |
       profileUrl: `https://steamcommunity.com/profiles/${profile.steamId}`,
       countryCode: "",
     },
-    ownedGames: [],
+    ownedGames,
     wishlistGameIds: [],
-    syncedAt: new Date().toISOString(),
+    syncedAt: syncedAt ?? new Date().toISOString(),
   };
 }
 
@@ -72,6 +85,9 @@ export function SteamProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<SteamStatus>("disconnected");
   const [snapshot, setSnapshot] = useState<SteamLibrarySnapshot | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SteamSyncStatus>("idle");
+  const [ownedAppIds, setOwnedAppIds] = useState<number[] | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
   const persistMock = (next: SteamLibrarySnapshot | null) => {
     try {
@@ -85,6 +101,9 @@ export function SteamProvider({ children }: { children: ReactNode }) {
   const loadServerLink = useCallback(async () => {
     if (!user) {
       setSnapshot(null);
+      setOwnedAppIds(null);
+      setSyncStatus("idle");
+      setLastSyncedAt(null);
       setStatus("disconnected");
       return;
     }
@@ -94,11 +113,40 @@ export function SteamProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
     if (error) {
       setSnapshot(null);
+      setOwnedAppIds(null);
+      setSyncStatus("idle");
+      setLastSyncedAt(null);
       setStatus("disconnected");
       return;
     }
     const profile = toPublicSteamProfile((data as Record<string, unknown> | null) ?? null);
-    const next = snapshotFromPublic(profile);
+    let appIds: number[] | null = null;
+    let syncState: SteamSyncStatus = "idle";
+    let syncedAtIso: string | null = null;
+
+    if (profile.connected) {
+      const { data: cacheRow } = await supabase
+        .from("steam_library_cache")
+        .select("owned_app_ids, sync_status, synced_at")
+        .maybeSingle();
+      if (cacheRow) {
+        const record = cacheRow as Record<string, unknown>;
+        if (Array.isArray(record["owned_app_ids"])) {
+          appIds = (record["owned_app_ids"] as unknown[]).map(Number);
+        }
+        if (typeof record["sync_status"] === "string") {
+          syncState = record["sync_status"] as SteamSyncStatus;
+        }
+        if (typeof record["synced_at"] === "string") {
+          syncedAtIso = record["synced_at"] as string;
+        }
+      }
+    }
+
+    setOwnedAppIds(appIds);
+    setSyncStatus(syncState);
+    setLastSyncedAt(syncedAtIso);
+    const next = snapshotFromPublic(profile, appIds, syncedAtIso);
     setSnapshot(next);
     setStatus(next ? "connected" : "disconnected");
   }, [user]);
@@ -240,12 +288,62 @@ export function SteamProvider({ children }: { children: ReactNode }) {
       await connectMock(snapshot.profile.personaName);
       return;
     }
-    setErrorCode("library-sync-stub");
-  }, [mock, snapshot, connectMock]);
+    const supabaseUrl = env.VITE_SUPABASE_URL;
+    const publishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    if (!session?.access_token || !supabaseUrl || !publishableKey) {
+      setErrorCode("sign-in-required");
+      return;
+    }
+    setSyncStatus("syncing");
+    try {
+      const result = await syncSteamLibrary({
+        accessToken: session.access_token,
+        supabaseUrl,
+        publishableKey,
+        force: true,
+      });
+      const nextStatus: SteamSyncStatus = result.status === "unlinked" ? "failed" : result.status;
+      setSyncStatus(nextStatus);
+      if (result.appIds) {
+        setOwnedAppIds(result.appIds);
+      }
+      if (result.syncedAt) {
+        setLastSyncedAt(result.syncedAt);
+      }
+      if (snapshot) {
+        const updated = snapshotFromPublic(
+          {
+            connected: true,
+            personaName: snapshot.profile.personaName,
+            avatarUrl: snapshot.profile.avatarUrl,
+            steamId: snapshot.profile.steamId,
+          },
+          result.appIds ?? ownedAppIds,
+          result.syncedAt ?? lastSyncedAt,
+        );
+        if (updated) setSnapshot(updated);
+      }
+    } catch {
+      setSyncStatus("failed");
+      setErrorCode("sync-failed");
+    }
+  }, [
+    mock,
+    snapshot,
+    connectMock,
+    session?.access_token,
+    env.VITE_SUPABASE_URL,
+    env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    ownedAppIds,
+    lastSyncedAt,
+  ]);
 
   const disconnect = useCallback(() => {
     if (mock) {
       setSnapshot(null);
+      setOwnedAppIds(null);
+      setSyncStatus("idle");
+      setLastSyncedAt(null);
       persistMock(null);
       setErrorCode(null);
       setStatus("disconnected");
@@ -254,8 +352,12 @@ export function SteamProvider({ children }: { children: ReactNode }) {
     void (async () => {
       if (user) {
         await supabase.from("steam_links").delete().eq("user_id", user.id);
+        await supabase.from("steam_library_cache").delete().eq("user_id", user.id);
       }
       setSnapshot(null);
+      setOwnedAppIds(null);
+      setSyncStatus("idle");
+      setLastSyncedAt(null);
       setErrorCode(null);
       setStatus("disconnected");
     })();
@@ -276,13 +378,36 @@ export function SteamProvider({ children }: { children: ReactNode }) {
         : { connected: false, personaName: null, avatarUrl: null, steamId: null },
       errorCode,
       ownedGameIds,
+      ownedAppIds,
+      syncStatus,
+      lastSyncedAt,
       mock,
-      owns: (id) => ownedGameIds.includes(id),
+      owns: (id) => {
+        if (ownedGameIds.includes(id)) return true;
+        if (ownedAppIds && ownedAppIds.length > 0) {
+          const num = Number(id);
+          if (Number.isSafeInteger(num) && num > 0) {
+            return ownedAppIds.includes(num);
+          }
+        }
+        return false;
+      },
       connect,
       resync,
       disconnect,
     };
-  }, [status, snapshot, errorCode, mock, connect, resync, disconnect]);
+  }, [
+    status,
+    snapshot,
+    errorCode,
+    ownedAppIds,
+    syncStatus,
+    lastSyncedAt,
+    mock,
+    connect,
+    resync,
+    disconnect,
+  ]);
 
   return <SteamContext.Provider value={value}>{children}</SteamContext.Provider>;
 }

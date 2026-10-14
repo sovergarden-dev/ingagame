@@ -6,7 +6,9 @@ import {
   confirmSteamConnect,
   parseSteamLinkRow,
   steamConnectStartUrl,
+  steamConnectSyncUrl,
   startSteamConnect,
+  syncSteamLibrary,
   toPublicSteamProfile,
 } from "./client.ts";
 
@@ -192,5 +194,87 @@ describe("confirmSteamConnect", () => {
       steamId: "76561198000000000",
     });
     assert.equal(JSON.stringify(profile).includes("leak"), false);
+  });
+});
+
+describe("syncSteamLibrary", () => {
+  it("calls Edge sync endpoint with authorization and publishable key", async () => {
+    const calls: { url: string; headers: Record<string, string>; body: string }[] = [];
+    const result = await syncSteamLibrary({
+      accessToken: "user-jwt",
+      supabaseUrl: "https://proj.supabase.co",
+      publishableKey: "sb_publishable_test",
+      force: true,
+      fetch: async (input, init) => {
+        const headers = new Headers(init?.headers);
+        calls.push({
+          url: String(input),
+          headers: Object.fromEntries(headers.entries()),
+          body: String(init?.body ?? ""),
+        });
+        return new Response(
+          JSON.stringify({
+            cached: false,
+            status: "synced",
+            appIds: [730, 440],
+            gameCount: 2,
+            syncedAt: "2026-10-14T01:00:00.000Z",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      },
+    });
+
+    assert.equal(calls[0]?.url, "https://proj.supabase.co/functions/v1/steam-connect/sync");
+    assert.equal(calls[0]?.headers["authorization"], "Bearer user-jwt");
+    assert.equal(calls[0]?.headers["apikey"], "sb_publishable_test");
+    assert.equal(calls[0]?.body, JSON.stringify({ force: true }));
+    assert.deepEqual(result, {
+      cached: false,
+      status: "synced",
+      appIds: [730, 440],
+      gameCount: 2,
+      syncedAt: "2026-10-14T01:00:00.000Z",
+      cooldown: false,
+      retryAfterSeconds: undefined,
+      message: undefined,
+    });
+  });
+
+  it("handles unlinked response gracefully", async () => {
+    const result = await syncSteamLibrary({
+      accessToken: "user-jwt",
+      supabaseUrl: "https://proj.supabase.co",
+      publishableKey: "sb_publishable_test",
+      fetch: async () => {
+        return new Response(JSON.stringify({ error: "steam_not_linked" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    });
+
+    assert.deepEqual(result, {
+      cached: false,
+      status: "unlinked",
+      appIds: null,
+    });
+  });
+
+  it("throws SteamConnectError on 401 sign in required", async () => {
+    await assert.rejects(
+      syncSteamLibrary({
+        accessToken: "expired-jwt",
+        supabaseUrl: "https://proj.supabase.co",
+        publishableKey: "sb_publishable_test",
+        fetch: async () => {
+          return new Response(JSON.stringify({ error: "sign_in_required" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
+        },
+      }),
+      { name: "SteamConnectError", message: "sign_in_required" },
+    );
   });
 });
