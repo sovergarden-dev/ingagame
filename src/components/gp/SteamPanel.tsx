@@ -17,12 +17,24 @@ function hours(minutes: number) {
 }
 
 export function SteamPanel() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { titleLanguage } = usePreferences();
   const { user } = useAuth();
-  const { status, snapshot, errorCode, mock, connect, resync, disconnect } = useSteam();
+  const {
+    status,
+    snapshot,
+    errorCode,
+    mock,
+    connect,
+    resync,
+    disconnect,
+    syncStatus,
+    lastSyncedAt,
+    cooldownSeconds,
+    ownedAppIds,
+  } = useSteam();
   const [handle, setHandle] = useState("");
-  const busy = status === "connecting";
+  const busy = status === "connecting" || syncStatus === "syncing";
 
   const errorKey = (
     errorCode === "profile-private"
@@ -62,8 +74,8 @@ export function SteamPanel() {
             </p>
             <p className="truncate text-xs text-muted-foreground">
               {snapshot.profile.steamId}
-              {snapshot.ownedGames.length > 0
-                ? ` · ${snapshot.ownedGames.length} ${t("steam.games")}`
+              {snapshot.ownedGames.length > 0 || (ownedAppIds && ownedAppIds.length > 0)
+                ? ` · ${snapshot.ownedGames.length || ownedAppIds?.length} ${t("steam.games")}`
                 : null}
             </p>
           </div>
@@ -106,18 +118,38 @@ export function SteamPanel() {
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="glass" size="sm" onClick={() => void resync()} disabled={busy}>
-            <RefreshCw />
-            {t("steam.resync")}
+          <Button
+            variant="glass"
+            size="sm"
+            onClick={() => void resync()}
+            disabled={busy || cooldownSeconds > 0}
+          >
+            {syncStatus === "syncing" ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            {syncStatus === "syncing"
+              ? t("steam.connecting")
+              : cooldownSeconds > 0
+                ? `${t("steam.resync")} (${cooldownSeconds}s)`
+                : t("steam.resync")}
           </Button>
           <Button variant="quiet" size="sm" onClick={disconnect}>
             <Unplug />
             {t("steam.disconnect")}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {mock ? t("steam.mockNote") : t("steam.syncStub")}
-        </p>
+        {syncStatus === "unavailable" ? (
+          <p className="text-xs text-amber-500/90 dark:text-amber-400/90">
+            {t("steam.error.private")}
+          </p>
+        ) : null}
+        {lastSyncedAt ? (
+          <p className="text-xs text-muted-foreground">
+            {new Date(lastSyncedAt).toLocaleString(locale === "vi" ? "vi-VN" : "en-US")}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {mock ? t("steam.mockNote") : t("steam.syncStub")}
+          </p>
+        )}
       </div>
     );
   }

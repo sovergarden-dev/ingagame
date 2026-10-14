@@ -58,6 +58,8 @@ export interface Game {
   coverUrl: string;
   backdropUrl?: string;
   platforms: PlatformId[];
+  /** Canonical Steam AppID (uint32 > 0). Undefined if not on Steam or fictional. */
+  steamAppId?: number;
   /** A game has many release events; never a single releaseDate field. */
   releaseEvents: ReleaseEvent[];
   hypeScore?: number;

@@ -38,6 +38,7 @@ interface GameSeed {
   genres: string[];
   cover: string;
   events: Omit<ReleaseEvent, "id" | "gameId">[];
+  steamAppId?: number;
   hypeScore?: number;
   criticScore?: number;
 }
@@ -362,6 +363,7 @@ export const GAMES: Game[] = seeds.map((seed, gi) => {
       id: `${id}-rel-${ei + 1}`,
       gameId: id,
     })),
+    ...(seed.steamAppId ? { steamAppId: seed.steamAppId } : {}),
     ...(seed.hypeScore ? { hypeScore: seed.hypeScore } : {}),
     ...(seed.criticScore ? { criticScore: seed.criticScore } : {}),
   } satisfies Game;

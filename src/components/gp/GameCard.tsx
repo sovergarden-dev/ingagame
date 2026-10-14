@@ -4,6 +4,7 @@ import { useFormatReleaseDate } from "./use-format-release";
 import { PlatformBadgeList } from "./PlatformBadge";
 import { ReleaseStatusBadge } from "./ReleaseStatusBadge";
 import { WishlistButton } from "./WishlistButton";
+import { SteamOwnershipBadge } from "./SteamOwnershipBadge";
 import { useI18n } from "@/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 import { useGameTitle } from "./use-game-title";
@@ -53,6 +54,7 @@ export function GameCard({
       <p className="line-clamp-1 text-xs text-muted-foreground">{game.developer}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <PlatformBadgeList platforms={game.platforms} max={3} />
+        <SteamOwnershipBadge game={game} />
       </div>
       {next && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -101,9 +103,12 @@ export function GameCardCompact({
         <p className="truncate text-sm font-medium text-foreground group-hover:text-accent">
           {title}
         </p>
-        <p className="truncate text-xs text-muted-foreground">
-          {next ? formatWhen(next.date, next.precision) : game.developer}
-        </p>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+            {next ? formatWhen(next.date, next.precision) : game.developer}
+          </p>
+          <SteamOwnershipBadge game={game} variant="compact" />
+        </div>
       </div>
       {trailing}
     </Link>
