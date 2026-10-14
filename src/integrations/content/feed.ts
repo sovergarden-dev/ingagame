@@ -67,7 +67,7 @@ export function parseContentFeedResponse(json: unknown): { items: unknown[]; fet
   if (!json || typeof json !== "object") {
     throw new Error("invalid_feed");
   }
-  const record = json as Record<string, unknown>;
+  const record = json as { items?: unknown; fetchedAt?: unknown };
   const items = Array.isArray(record.items) ? record.items : [];
   const fetchedAt = typeof record.fetchedAt === "string" ? record.fetchedAt : "";
   return { items, fetchedAt };
@@ -193,97 +193,133 @@ function isPlatformIdList(value: unknown): value is PlatformId[] {
 
 export function isReleaseEvent(value: unknown): value is ReleaseEvent {
   if (!isRecord(value)) return false;
+  const id = value["id"];
+  const gameId = value["gameId"];
+  const date = value["date"];
+  const precision = value["precision"];
+  const confidence = value["confidence"];
+  const kind = value["kind"];
+  const state = value["state"];
+  const platforms = value["platforms"];
   return (
-    typeof value.id === "string" &&
-    value.id.trim().length > 0 &&
-    typeof value.gameId === "string" &&
-    value.gameId.trim().length > 0 &&
-    typeof value.date === "string" &&
-    value.date.length >= 10 &&
-    !Number.isNaN(Date.parse(value.date)) &&
-    PRECISIONS.has(value.precision as string) &&
-    CONFIDENCES.has(value.confidence as string) &&
-    KINDS.has(value.kind as string) &&
-    STATES.has(value.state as string) &&
-    isPlatformIdList(value.platforms)
+    typeof id === "string" &&
+    id.trim().length > 0 &&
+    typeof gameId === "string" &&
+    gameId.trim().length > 0 &&
+    typeof date === "string" &&
+    date.length >= 10 &&
+    !Number.isNaN(Date.parse(date)) &&
+    PRECISIONS.has(precision as string) &&
+    CONFIDENCES.has(confidence as string) &&
+    KINDS.has(kind as string) &&
+    STATES.has(state as string) &&
+    isPlatformIdList(platforms)
   );
 }
 
 export function isGameSnapshot(value: unknown): value is Game {
   if (!isRecord(value)) return false;
+  const id = value["id"];
+  const slug = value["slug"];
+  const title = value["title"];
+  const coverUrl = value["coverUrl"];
+  const developer = value["developer"];
+  const publisher = value["publisher"];
+  const summary = value["summary"];
+  const platforms = value["platforms"];
+  const genres = value["genres"];
+  const releaseEvents = value["releaseEvents"];
+  const backdropUrl = value["backdropUrl"];
+  const originalTitle = value["originalTitle"];
+
   if (
-    typeof value.id !== "string" ||
-    value.id.trim().length === 0 ||
-    typeof value.slug !== "string" ||
-    value.slug.trim().length === 0 ||
-    typeof value.title !== "string" ||
-    typeof value.coverUrl !== "string" ||
-    typeof value.developer !== "string" ||
-    typeof value.publisher !== "string" ||
-    typeof value.summary !== "string"
+    typeof id !== "string" ||
+    id.trim().length === 0 ||
+    typeof slug !== "string" ||
+    slug.trim().length === 0 ||
+    typeof title !== "string" ||
+    typeof coverUrl !== "string" ||
+    typeof developer !== "string" ||
+    typeof publisher !== "string" ||
+    typeof summary !== "string"
   ) {
     return false;
   }
-  if (!isPlatformIdList(value.platforms)) return false;
-  if (!Array.isArray(value.genres) || !value.genres.every((g) => typeof g === "string")) {
+  if (!isPlatformIdList(platforms)) return false;
+  if (!Array.isArray(genres) || !genres.every((g) => typeof g === "string")) {
     return false;
   }
-  if (!Array.isArray(value.releaseEvents) || !value.releaseEvents.every(isReleaseEvent)) {
+  if (!Array.isArray(releaseEvents) || !releaseEvents.every(isReleaseEvent)) {
     return false;
   }
-  if (value.backdropUrl != null && typeof value.backdropUrl !== "string") return false;
-  if (value.originalTitle != null && typeof value.originalTitle !== "string") return false;
+  if (backdropUrl != null && typeof backdropUrl !== "string") return false;
+  if (originalTitle != null && typeof originalTitle !== "string") return false;
   return true;
 }
 
 export function isRadarEntry(value: unknown): value is RadarEntry {
   if (!isRecord(value)) return false;
-  if (!isGameSnapshot(value.game) || !isReleaseEvent(value.event)) return false;
-  return value.game.id === value.event.gameId;
+  const game = value["game"];
+  const event = value["event"];
+  if (!isGameSnapshot(game) || !isReleaseEvent(event)) return false;
+  return game.id === event.gameId;
 }
 
 export function isDealItem(value: unknown): value is Deal {
+  if (!isRecord(value)) return false;
+  const id = value["id"];
+  const gameId = value["gameId"];
+  const store = value["store"];
+  const priceCurrent = value["priceCurrent"];
+  const priceBase = value["priceBase"];
+  const discountPercent = value["discountPercent"];
+  const currency = value["currency"];
+  const game = value["game"];
+
   if (
-    !isRecord(value) ||
-    typeof value.id !== "string" ||
-    value.id.trim().length === 0 ||
-    typeof value.gameId !== "string" ||
-    value.gameId.trim().length === 0 ||
-    typeof value.store !== "string" ||
-    typeof value.priceCurrent !== "number" ||
-    typeof value.priceBase !== "number" ||
-    typeof value.discountPercent !== "number" ||
-    typeof value.currency !== "string"
+    typeof id !== "string" ||
+    id.trim().length === 0 ||
+    typeof gameId !== "string" ||
+    gameId.trim().length === 0 ||
+    typeof store !== "string" ||
+    typeof priceCurrent !== "number" ||
+    typeof priceBase !== "number" ||
+    typeof discountPercent !== "number" ||
+    typeof currency !== "string"
   ) {
     return false;
   }
-  if (value.game != null) {
-    if (!isGameSnapshot(value.game)) return false;
-    if (value.game.id !== value.gameId) return false;
+  if (game != null) {
+    if (!isGameSnapshot(game)) return false;
+    if (game.id !== gameId) return false;
   }
   return true;
 }
 
 export function isArticleItem(value: unknown): value is Article {
+  if (!isRecord(value)) return false;
+  const id = value["id"];
+  const title = value["title"];
+  const source = value["source"];
+  const publishedAt = value["publishedAt"];
+  const gameId = value["gameId"];
+  const game = value["game"];
+
   if (
-    !isRecord(value) ||
-    typeof value.id !== "string" ||
-    value.id.trim().length === 0 ||
-    typeof value.title !== "string" ||
-    typeof value.source !== "string" ||
-    typeof value.publishedAt !== "string"
+    typeof id !== "string" ||
+    id.trim().length === 0 ||
+    typeof title !== "string" ||
+    typeof source !== "string" ||
+    typeof publishedAt !== "string"
   ) {
     return false;
   }
-  if (
-    value.gameId != null &&
-    (typeof value.gameId !== "string" || value.gameId.trim().length === 0)
-  ) {
+  if (gameId != null && (typeof gameId !== "string" || gameId.trim().length === 0)) {
     return false;
   }
-  if (value.game != null) {
-    if (!isGameSnapshot(value.game)) return false;
-    if (typeof value.gameId === "string" && value.game.id !== value.gameId) return false;
+  if (game != null) {
+    if (!isGameSnapshot(game)) return false;
+    if (typeof gameId === "string" && game.id !== gameId) return false;
   }
   return true;
 }
@@ -306,9 +342,9 @@ export function requireFeedSuccess<T>(result: ContentFeedResult<T>): ContentFeed
 export function findGameBySlug(
   slug: string,
   sources: {
-    releases?: RadarEntry[];
-    deals?: Deal[];
-    news?: Article[];
+    releases?: RadarEntry[] | undefined;
+    deals?: Deal[] | undefined;
+    news?: Article[] | undefined;
   },
 ): Game | undefined {
   for (const entry of sources.releases ?? []) {

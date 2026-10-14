@@ -146,12 +146,9 @@ export function SteamProvider({ children }: { children: ReactNode }) {
     }
 
     if (steam === "pending") {
-      if (
-        !ticket ||
-        !session?.access_token ||
-        !env.VITE_SUPABASE_URL ||
-        !env.VITE_SUPABASE_PUBLISHABLE_KEY
-      ) {
+      const supabaseUrl = env.VITE_SUPABASE_URL;
+      const publishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      if (!ticket || !session?.access_token || !supabaseUrl || !publishableKey) {
         setErrorCode(session?.access_token ? "start-failed" : "sign-in-required");
         setStatus("error");
         return;
@@ -161,8 +158,8 @@ export function SteamProvider({ children }: { children: ReactNode }) {
           const profile = await confirmSteamConnect({
             ticket,
             accessToken: session.access_token,
-            supabaseUrl: env.VITE_SUPABASE_URL,
-            publishableKey: env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            supabaseUrl,
+            publishableKey,
           });
           const next = snapshotFromPublic(profile);
           setSnapshot(next);

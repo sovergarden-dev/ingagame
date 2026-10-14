@@ -49,7 +49,7 @@ export function toPublicSteamProfile(row: Record<string, unknown> | null): Steam
 
 export function parseSteamLinkRow(row: unknown): SteamLinkPublicRow | null {
   if (!row || typeof row !== "object") return null;
-  const record = row as Record<string, unknown>;
+  const record = row as { steam_id?: unknown; persona_name?: unknown; avatar_url?: unknown };
   if (typeof record.steam_id !== "string" || record.steam_id.length === 0) return null;
   return {
     steam_id: record.steam_id,

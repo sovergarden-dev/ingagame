@@ -35,6 +35,15 @@ export function sitemapXml(paths: readonly string[] = PUBLIC_PATHS) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`;
 }
 
+export interface VideoGameJsonLd {
+  "@context": "https://schema.org";
+  "@type": "VideoGame";
+  name: string;
+  url: string;
+  description?: string;
+  datePublished?: string;
+}
+
 /** Structured data only includes a release date when the catalogue recorded an exact time or a calendar date. */
 export function videoGameJsonLd(input: {
   name: string;
@@ -42,9 +51,9 @@ export function videoGameJsonLd(input: {
   description?: string;
   date?: string;
   precision?: string;
-}) {
+}): VideoGameJsonLd | null {
   if (!input.name.trim() || !input.url.startsWith("https://")) return null;
-  const data: Record<string, string> = {
+  const data: VideoGameJsonLd = {
     "@context": "https://schema.org",
     "@type": "VideoGame",
     name: input.name,
