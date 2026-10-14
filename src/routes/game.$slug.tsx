@@ -22,6 +22,7 @@ import { isCountdownable, isReleaseStillAhead } from "@/domain/release";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { PlatformBadge } from "@/components/gp/PlatformBadge";
+import { SteamOwnershipBadge } from "@/components/gp/SteamOwnershipBadge";
 import {
   ReleaseKindBadge,
   ReleaseStateBadge,
@@ -224,6 +225,7 @@ function GameDetail() {
               {game.platforms.map((p) => (
                 <PlatformBadge key={p} platform={p} size="sm" />
               ))}
+              <SteamOwnershipBadge game={game} />
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <WishlistButton gameId={game.id} variant="full" />

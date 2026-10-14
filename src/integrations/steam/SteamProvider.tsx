@@ -9,6 +9,14 @@ import {
 } from "react";
 import { useAuth } from "@/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
+import type { Game } from "@/domain/types";
+import { getGame } from "@/domain/mock-data";
+import {
+  getOwnershipStatus,
+  isValidSteamAppId,
+  resolveGameSteamAppId,
+  type OwnershipStatus,
+} from "@/domain/ownership";
 import {
   STEAM_LINKS_PUBLIC_COLUMNS,
   SteamConnectError,
@@ -31,10 +39,14 @@ export interface SteamValue {
   errorCode: string | null;
   ownedGameIds: string[];
   ownedAppIds: number[] | null;
+  ownedAppIdsSet: ReadonlySet<number> | null;
   syncStatus: SteamSyncStatus;
   lastSyncedAt: string | null;
+  cooldownSeconds: number;
   mock: boolean;
-  owns: (gameId: string) => boolean;
+  owns: (gameOrId: Game | string) => boolean;
+  ownsSteamApp: (appId: number) => boolean;
+  getOwnership: (gameOrId: Game | string) => OwnershipStatus;
   connect: (handle?: string) => Promise<void>;
   resync: () => Promise<void>;
   disconnect: () => void;
@@ -88,6 +100,21 @@ export function SteamProvider({ children }: { children: ReactNode }) {
   const [syncStatus, setSyncStatus] = useState<SteamSyncStatus>("idle");
   const [ownedAppIds, setOwnedAppIds] = useState<number[] | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [cooldownSeconds, setCooldownSeconds] = useState<number>(0);
+
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setCooldownSeconds((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldownSeconds]);
+
+  const ownedAppIdsSet = useMemo<ReadonlySet<number> | null>(() => {
+    if (ownedAppIds === null) return null;
+    const valid = ownedAppIds.filter(isValidSteamAppId);
+    return new Set(valid);
+  }, [ownedAppIds]);
 
   const persistMock = (next: SteamLibrarySnapshot | null) => {
     try {
@@ -294,6 +321,7 @@ export function SteamProvider({ children }: { children: ReactNode }) {
       setErrorCode("sign-in-required");
       return;
     }
+    if (cooldownSeconds > 0) return;
     setSyncStatus("syncing");
     try {
       const result = await syncSteamLibrary({
@@ -304,6 +332,11 @@ export function SteamProvider({ children }: { children: ReactNode }) {
       });
       const nextStatus: SteamSyncStatus = result.status === "unlinked" ? "failed" : result.status;
       setSyncStatus(nextStatus);
+      if (typeof result.retryAfterSeconds === "number" && result.retryAfterSeconds > 0) {
+        setCooldownSeconds(result.retryAfterSeconds);
+      } else if (result.cooldown) {
+        setCooldownSeconds(60);
+      }
       if (result.appIds) {
         setOwnedAppIds(result.appIds);
       }
@@ -331,6 +364,7 @@ export function SteamProvider({ children }: { children: ReactNode }) {
     mock,
     snapshot,
     connectMock,
+    cooldownSeconds,
     session?.access_token,
     env.VITE_SUPABASE_URL,
     env.VITE_SUPABASE_PUBLISHABLE_KEY,
@@ -344,6 +378,7 @@ export function SteamProvider({ children }: { children: ReactNode }) {
       setOwnedAppIds(null);
       setSyncStatus("idle");
       setLastSyncedAt(null);
+      setCooldownSeconds(0);
       persistMock(null);
       setErrorCode(null);
       setStatus("disconnected");
@@ -358,10 +393,43 @@ export function SteamProvider({ children }: { children: ReactNode }) {
       setOwnedAppIds(null);
       setSyncStatus("idle");
       setLastSyncedAt(null);
+      setCooldownSeconds(0);
       setErrorCode(null);
       setStatus("disconnected");
     })();
   }, [mock, user]);
+
+  const ownsSteamApp = useCallback(
+    (appId: number): boolean => {
+      if (!isValidSteamAppId(appId)) return false;
+      return Boolean(ownedAppIdsSet?.has(appId));
+    },
+    [ownedAppIdsSet],
+  );
+
+  const getOwnership = useCallback(
+    (gameOrId: Game | string): OwnershipStatus => {
+      const gameId = typeof gameOrId === "object" ? gameOrId.id : gameOrId;
+      const steamAppId = resolveGameSteamAppId(gameOrId, getGame);
+      const ownedGameIds = snapshot?.ownedGames.map((g) => g.gameId) ?? [];
+      return getOwnershipStatus({
+        connected: status === "connected",
+        syncStatus,
+        ownedAppIdsSet,
+        steamAppId,
+        mockOwnedGameIds: mock ? ownedGameIds : undefined,
+        gameId,
+      });
+    },
+    [status, syncStatus, ownedAppIdsSet, snapshot, mock],
+  );
+
+  const owns = useCallback(
+    (gameOrId: Game | string): boolean => {
+      return getOwnership(gameOrId) === "owned";
+    },
+    [getOwnership],
+  );
 
   const value = useMemo<SteamValue>(() => {
     const ownedGameIds = snapshot?.ownedGames.map((g) => g.gameId) ?? [];
@@ -379,19 +447,14 @@ export function SteamProvider({ children }: { children: ReactNode }) {
       errorCode,
       ownedGameIds,
       ownedAppIds,
+      ownedAppIdsSet,
       syncStatus,
       lastSyncedAt,
+      cooldownSeconds,
       mock,
-      owns: (id) => {
-        if (ownedGameIds.includes(id)) return true;
-        if (ownedAppIds && ownedAppIds.length > 0) {
-          const num = Number(id);
-          if (Number.isSafeInteger(num) && num > 0) {
-            return ownedAppIds.includes(num);
-          }
-        }
-        return false;
-      },
+      owns,
+      ownsSteamApp,
+      getOwnership,
       connect,
       resync,
       disconnect,
@@ -401,9 +464,14 @@ export function SteamProvider({ children }: { children: ReactNode }) {
     snapshot,
     errorCode,
     ownedAppIds,
+    ownedAppIdsSet,
     syncStatus,
     lastSyncedAt,
+    cooldownSeconds,
     mock,
+    owns,
+    ownsSteamApp,
+    getOwnership,
     connect,
     resync,
     disconnect,
