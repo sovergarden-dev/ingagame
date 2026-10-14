@@ -318,15 +318,20 @@ describe("handleSteamConnect callback + confirm", () => {
   });
 });
 
-describe("handleSteamConnect sync stub", () => {
-  it("does not call the Steam Web API for library sync", async () => {
-    let personaCalls = 0;
-    const deps = baseDeps({
-      fetchPersona: async () => {
-        personaCalls += 1;
-        return { personaName: null, avatarUrl: null };
-      },
-    });
+describe("handleSteamConnect sync", () => {
+  it("rejects unauthenticated sync request with 401", async () => {
+    const deps = baseDeps();
+    const response = await handleSteamConnect(
+      new Request(`${SUPABASE_URL}/functions/v1/steam-connect/sync`, {
+        method: "POST",
+      }),
+      deps,
+    );
+    assert.equal(response.status, 401);
+  });
+
+  it("returns 501 when sync dependencies are not provided", async () => {
+    const deps = baseDeps();
     const response = await handleSteamConnect(
       new Request(`${SUPABASE_URL}/functions/v1/steam-connect/sync`, {
         method: "POST",
@@ -337,6 +342,185 @@ describe("handleSteamConnect sync stub", () => {
     assert.equal(response.status, 501);
     const payload = (await response.json()) as { error: string };
     assert.equal(payload.error, "library_sync_not_implemented");
-    assert.equal(personaCalls, 0);
+  });
+
+  it("returns 404 when user has no linked steam account", async () => {
+    const deps = baseDeps({
+      claimSync: async () => ({
+        claimed: false,
+        attemptId: null,
+        steamId: null,
+        linkRevision: null,
+        currentStatus: "unlinked",
+        ownedAppIds: null,
+        syncedAt: null,
+        retryAfterSeconds: 0,
+      }),
+      finalizeSync: async () => true,
+    });
+    const response = await handleSteamConnect(
+      new Request(`${SUPABASE_URL}/functions/v1/steam-connect/sync`, {
+        method: "POST",
+        headers: { Authorization: "Bearer user-jwt" },
+      }),
+      deps,
+    );
+    assert.equal(response.status, 404);
+    const payload = (await response.json()) as { error: string };
+    assert.equal(payload.error, "steam_not_linked");
+  });
+
+  it("returns cached snapshot when within cooldown", async () => {
+    const deps = baseDeps({
+      claimSync: async () => ({
+        claimed: false,
+        attemptId: null,
+        steamId: STEAM_ID,
+        linkRevision: "rev-1",
+        currentStatus: "synced",
+        ownedAppIds: [10, 20, 30],
+        syncedAt: "2026-09-07T11:55:00.000Z",
+        retryAfterSeconds: 600,
+      }),
+      finalizeSync: async () => true,
+    });
+    const response = await handleSteamConnect(
+      new Request(`${SUPABASE_URL}/functions/v1/steam-connect/sync`, {
+        method: "POST",
+        headers: { Authorization: "Bearer user-jwt" },
+      }),
+      deps,
+    );
+    assert.equal(response.status, 200);
+    const payload = (await response.json()) as {
+      cached: boolean;
+      cooldown: boolean;
+      retryAfterSeconds: number;
+      status: string;
+      appIds: number[];
+    };
+    assert.equal(payload.cached, true);
+    assert.equal(payload.cooldown, true);
+    assert.equal(payload.retryAfterSeconds, 600);
+    assert.deepEqual(payload.appIds, [10, 20, 30]);
+  });
+
+  it("successfully syncs owned games and finalizes atomically", async () => {
+    let finalizedParams: Record<string, unknown> | null = null;
+    const deps = baseDeps({
+      claimSync: async () => ({
+        claimed: true,
+        attemptId: "att-123",
+        steamId: STEAM_ID,
+        linkRevision: "rev-1",
+        currentStatus: "idle",
+        ownedAppIds: null,
+        syncedAt: null,
+        retryAfterSeconds: 0,
+      }),
+      fetchOwnedGames: async (steamId) => {
+        assert.equal(steamId, STEAM_ID);
+        return { status: "ok", appIds: [730, 440, 570], gameCount: 3 };
+      },
+      finalizeSync: async (params) => {
+        finalizedParams = params as Record<string, unknown>;
+        return true;
+      },
+    });
+
+    const response = await handleSteamConnect(
+      new Request(`${SUPABASE_URL}/functions/v1/steam-connect/sync`, {
+        method: "POST",
+        headers: { Authorization: "Bearer user-jwt" },
+      }),
+      deps,
+    );
+    assert.equal(response.status, 200);
+    const payload = (await response.json()) as {
+      cached: boolean;
+      status: string;
+      appIds: number[];
+      gameCount: number;
+    };
+    assert.equal(payload.cached, false);
+    assert.equal(payload.status, "synced");
+    assert.deepEqual(payload.appIds, [730, 440, 570]);
+    assert.equal(payload.gameCount, 3);
+    assert.ok(finalizedParams);
+    assert.equal(finalizedParams?.["syncStatus"], "synced");
+    assert.deepEqual(finalizedParams?.["ownedAppIds"], [730, 440, 570]);
+    assert.equal(finalizedParams?.["attemptId"], "att-123");
+  });
+
+  it("handles private profile without overwriting existing cache", async () => {
+    let finalizedStatus = "";
+    const deps = baseDeps({
+      claimSync: async () => ({
+        claimed: true,
+        attemptId: "att-private",
+        steamId: STEAM_ID,
+        linkRevision: "rev-1",
+        currentStatus: "synced",
+        ownedAppIds: [730],
+        syncedAt: "2026-09-07T10:00:00.000Z",
+        retryAfterSeconds: 0,
+      }),
+      fetchOwnedGames: async () => ({ status: "unavailable" }),
+      finalizeSync: async (params) => {
+        finalizedStatus = params.syncStatus;
+        return true;
+      },
+    });
+
+    const response = await handleSteamConnect(
+      new Request(`${SUPABASE_URL}/functions/v1/steam-connect/sync`, {
+        method: "POST",
+        headers: { Authorization: "Bearer user-jwt" },
+      }),
+      deps,
+    );
+    assert.equal(response.status, 200);
+    const payload = (await response.json()) as {
+      status: string;
+      appIds: number[];
+      message: string;
+    };
+    assert.equal(payload.status, "unavailable");
+    assert.deepEqual(payload.appIds, [730]);
+    assert.equal(finalizedStatus, "unavailable");
+  });
+
+  it("returns 502 when Steam API fails", async () => {
+    let finalizedStatus = "";
+    const deps = baseDeps({
+      claimSync: async () => ({
+        claimed: true,
+        attemptId: "att-fail",
+        steamId: STEAM_ID,
+        linkRevision: "rev-1",
+        currentStatus: "idle",
+        ownedAppIds: null,
+        syncedAt: null,
+        retryAfterSeconds: 0,
+      }),
+      fetchOwnedGames: async () => ({ status: "failed" }),
+      finalizeSync: async (params) => {
+        finalizedStatus = params.syncStatus;
+        return true;
+      },
+    });
+
+    const response = await handleSteamConnect(
+      new Request(`${SUPABASE_URL}/functions/v1/steam-connect/sync`, {
+        method: "POST",
+        headers: { Authorization: "Bearer user-jwt" },
+      }),
+      deps,
+    );
+    assert.equal(response.status, 502);
+    const payload = (await response.json()) as { error: string; status: string };
+    assert.equal(payload.error, "steam_api_failed");
+    assert.equal(payload.status, "failed");
+    assert.equal(finalizedStatus, "failed");
   });
 });

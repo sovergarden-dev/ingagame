@@ -57,6 +57,34 @@ export type SteamConnectDeps = {
   fetchPersona: (
     steamId: string,
   ) => Promise<{ personaName: string | null; avatarUrl: string | null }>;
+  claimSync?: (userId: string) => Promise<ClaimSyncResult>;
+  finalizeSync?: (params: {
+    userId: string;
+    steamId: string;
+    linkRevision: string;
+    attemptId: string;
+    syncStatus: "synced" | "unavailable" | "failed";
+    ownedAppIds: number[] | null;
+    gameCount: number | null;
+  }) => Promise<boolean>;
+  fetchOwnedGames?: (steamId: string) => Promise<SteamOwnedGamesResult>;
+};
+
+export type ClaimSyncResult = {
+  claimed: boolean;
+  attemptId: string | null;
+  steamId: string | null;
+  linkRevision: string | null;
+  currentStatus: string;
+  ownedAppIds: number[] | null;
+  syncedAt: string | null;
+  retryAfterSeconds: number;
+};
+
+export type SteamOwnedGamesResult = {
+  status: "ok" | "unavailable" | "failed";
+  appIds?: number[];
+  gameCount?: number;
 };
 
 export function corsHeaders(): Record<string, string> {
@@ -396,13 +424,157 @@ async function handleConfirm(req: Request, deps: SteamConnectDeps): Promise<Resp
   );
 }
 
+export async function fetchSteamOwnedGames(
+  steamId: string,
+  apiKey: string | null,
+): Promise<SteamOwnedGamesResult> {
+  if (!apiKey) return { status: "failed" };
+  try {
+    const url = new URL("https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/");
+    url.searchParams.set("key", apiKey);
+    url.searchParams.set("steamid", steamId);
+    url.searchParams.set("format", "json");
+    url.searchParams.set("include_appinfo", "0");
+    url.searchParams.set("include_played_free_games", "1");
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) return { status: "failed" };
+
+    const json = (await res.json()) as {
+      response?: {
+        game_count?: number;
+        games?: Array<{ appid?: number }>;
+      };
+    };
+
+    const resp = json.response;
+    if (!resp || typeof resp !== "object") return { status: "failed" };
+
+    if (Array.isArray(resp.games)) {
+      const appIds = resp.games
+        .map((g) => g.appid)
+        .filter((id): id is number => typeof id === "number" && Number.isSafeInteger(id));
+      const gameCount = typeof resp.game_count === "number" ? resp.game_count : appIds.length;
+      return { status: "ok", appIds, gameCount };
+    }
+
+    if (resp.game_count === 0) {
+      return { status: "ok", appIds: [], gameCount: 0 };
+    }
+
+    return { status: "unavailable" };
+  } catch {
+    return { status: "failed" };
+  }
+}
+
 async function handleSync(req: Request, deps: SteamConnectDeps): Promise<Response> {
   if (req.method !== "POST") return jsonResponse({ error: "method_not_allowed" }, 405);
   const jwt = bearerToken(req);
   if (!jwt) return jsonResponse({ error: "sign_in_required" }, 401);
   const user = await deps.getUser(jwt);
   if (!user) return jsonResponse({ error: "sign_in_required" }, 401);
-  return jsonResponse({ error: "library_sync_not_implemented" }, 501);
+
+  if (!deps.claimSync || !deps.finalizeSync) {
+    return jsonResponse({ error: "library_sync_not_implemented" }, 501);
+  }
+
+  const claim = await deps.claimSync(user.id);
+  if (!claim.claimed) {
+    if (claim.currentStatus === "unlinked") {
+      return jsonResponse({ error: "steam_not_linked" }, 404);
+    }
+    return jsonResponse(
+      {
+        cached: true,
+        cooldown: claim.retryAfterSeconds > 0,
+        retryAfterSeconds: claim.retryAfterSeconds,
+        status: claim.currentStatus,
+        appIds: claim.ownedAppIds,
+        syncedAt: claim.syncedAt,
+      },
+      200,
+    );
+  }
+
+  const steamId = claim.steamId;
+  const linkRevision = claim.linkRevision;
+  const attemptId = claim.attemptId;
+  if (!steamId || !linkRevision || !attemptId) {
+    return jsonResponse({ error: "steam_unavailable" }, 500);
+  }
+
+  const fetchGames =
+    deps.fetchOwnedGames ?? ((id) => fetchSteamOwnedGames(id, deps.env.steamApiKey));
+  const fetchResult = await fetchGames(steamId);
+
+  if (fetchResult.status === "ok") {
+    const appIds = fetchResult.appIds ?? [];
+    const gameCount = fetchResult.gameCount ?? appIds.length;
+    await deps.finalizeSync({
+      userId: user.id,
+      steamId,
+      linkRevision,
+      attemptId,
+      syncStatus: "synced",
+      ownedAppIds: appIds,
+      gameCount,
+    });
+    return jsonResponse(
+      {
+        cached: false,
+        status: "synced",
+        appIds,
+        gameCount,
+        syncedAt: deps.now().toISOString(),
+      },
+      200,
+    );
+  }
+
+  if (fetchResult.status === "unavailable") {
+    await deps.finalizeSync({
+      userId: user.id,
+      steamId,
+      linkRevision,
+      attemptId,
+      syncStatus: "unavailable",
+      ownedAppIds: null,
+      gameCount: null,
+    });
+    return jsonResponse(
+      {
+        cached: false,
+        status: "unavailable",
+        appIds: claim.ownedAppIds,
+        syncedAt: claim.syncedAt,
+        message: "Steam library is private or hidden",
+      },
+      200,
+    );
+  }
+
+  await deps.finalizeSync({
+    userId: user.id,
+    steamId,
+    linkRevision,
+    attemptId,
+    syncStatus: "failed",
+    ownedAppIds: null,
+    gameCount: null,
+  });
+  return jsonResponse(
+    {
+      error: "steam_api_failed",
+      status: "failed",
+      appIds: claim.ownedAppIds,
+      syncedAt: claim.syncedAt,
+    },
+    502,
+  );
 }
 
 export async function handleSteamConnect(req: Request, deps: SteamConnectDeps): Promise<Response> {
