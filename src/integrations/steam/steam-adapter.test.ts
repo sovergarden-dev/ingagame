@@ -88,8 +88,11 @@ describe("steamConnectStartUrl", () => {
 
 describe("startSteamConnect", () => {
   it("calls Edge start with the user JWT and publishable apikey only", async () => {
-    const calls: { url: string; headers: Record<string, string>; redirect?: RequestRedirect }[] =
-      [];
+    const calls: {
+      url: string;
+      headers: Record<string, string>;
+      redirect?: RequestRedirect | undefined;
+    }[] = [];
     const assigned: string[] = [];
     await startSteamConnect({
       accessToken: "user-jwt",

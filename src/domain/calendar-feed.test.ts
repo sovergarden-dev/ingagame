@@ -10,6 +10,7 @@ function event(
     gameId: "game",
     date: "2026-09-10",
     confidence: "confirmed",
+    state: "upcoming",
     platforms: ["pc"],
     ...partial,
   };
