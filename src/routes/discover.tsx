@@ -10,6 +10,8 @@ import { discoverGames, sharesHiddenGenre, type DiscoverSort } from "@/domain/di
 import { canonicalLinks } from "@/domain/seo";
 import { uniqueGamesFromReleases, freshnessFromFeed } from "@/integrations/content/feed";
 import { useReleasesFeed } from "@/integrations/content/use-content-feed";
+import { useSteam } from "@/integrations/steam/SteamProvider";
+import { shouldHideOwnedGame } from "@/domain/ownership";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { MessageKey } from "@/i18n/messages";
 import type { PlatformFamily } from "@/domain/types";
@@ -48,26 +50,45 @@ function DiscoverPage() {
   const [sort, setSort] = useState<SortId>("hype");
   const [mineOnly, setMineOnly] = useState(false);
   const hidden = useHiddenGames();
-  const { myPlatforms } = usePreferences();
+  const { myPlatforms, hideOwned, set: setPref } = usePreferences();
+  const { status: steamStatus, syncStatus: steamSyncStatus, getOwnership } = useSteam();
+
+  const canFilterOwned =
+    steamStatus === "connected" &&
+    steamSyncStatus !== "unavailable" &&
+    steamSyncStatus !== "failed";
+  const effectiveHideOwned = hideOwned && canFilterOwned;
 
   const allGenres = useMemo(
     () => [...new Set(catalogue.flatMap((g) => g.genres))].sort().slice(0, 12),
     [catalogue],
   );
 
-  const games = useMemo(
-    () =>
-      discoverGames(catalogue, {
-        query,
-        genres,
-        families,
-        sort,
-        hiddenIds: hidden.ids,
-        hiddenGenres: hidden.genres,
-        ...(mineOnly ? { myPlatformIds: myPlatforms } : {}),
-      }),
-    [catalogue, query, genres, families, sort, hidden.ids, hidden.genres, mineOnly, myPlatforms],
-  );
+  const games = useMemo(() => {
+    const base = discoverGames(catalogue, {
+      query,
+      genres,
+      families,
+      sort,
+      hiddenIds: hidden.ids,
+      hiddenGenres: hidden.genres,
+      ...(mineOnly ? { myPlatformIds: myPlatforms } : {}),
+    });
+    if (!effectiveHideOwned) return base;
+    return base.filter((g) => !shouldHideOwnedGame(g, effectiveHideOwned, getOwnership));
+  }, [
+    catalogue,
+    query,
+    genres,
+    families,
+    sort,
+    hidden.ids,
+    hidden.genres,
+    mineOnly,
+    myPlatforms,
+    effectiveHideOwned,
+    getOwnership,
+  ]);
 
   return (
     <PageShell
@@ -111,6 +132,18 @@ function DiscoverPage() {
             <span className="gp-eyebrow mr-1">{t("filter.platforms")}</span>
             <FilterChip active={mineOnly} onClick={() => setMineOnly((value) => !value)}>
               {t("filter.myPlatforms")}
+            </FilterChip>
+            <FilterChip
+              active={effectiveHideOwned}
+              disabled={!canFilterOwned}
+              onClick={() => {
+                if (canFilterOwned) {
+                  setPref("hideOwned", !hideOwned);
+                }
+              }}
+              title={!canFilterOwned ? t("steam.signInFirst") : undefined}
+            >
+              {t("filter.hideOwned")}
             </FilterChip>
             {FAMILIES.map((family) => (
               <FilterChip

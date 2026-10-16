@@ -38,6 +38,7 @@ export const ptBR = {
   "command.action.alerts": "Alertas e avisos",
   "filter.all": "Tudo",
   "filter.myPlatforms": "Minhas plataformas",
+  "filter.hideOwned": "Ocultar possuídos",
   "filter.wishlistOnly": "Só lista de desejos",
   "filter.followedOnly": "Só seguidos",
   "filter.releaseType": "Tipo de lançamento",

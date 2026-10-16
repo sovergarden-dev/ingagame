@@ -38,6 +38,7 @@ export const zhCN = {
   "command.action.alerts": "提醒与通知",
   "filter.all": "全部",
   "filter.myPlatforms": "我的平台",
+  "filter.hideOwned": "隐藏已拥有",
   "filter.wishlistOnly": "仅愿望单",
   "filter.followedOnly": "仅已关注",
   "filter.releaseType": "发售类型",

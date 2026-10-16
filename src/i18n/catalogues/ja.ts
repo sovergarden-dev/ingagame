@@ -38,6 +38,7 @@ export const ja = {
   "command.action.alerts": "アラートと通知",
   "filter.all": "すべて",
   "filter.myPlatforms": "自分のプラットフォーム",
+  "filter.hideOwned": "所有済みを非表示",
   "filter.wishlistOnly": "ウィッシュリストのみ",
   "filter.followedOnly": "フォロー中のみ",
   "filter.releaseType": "リリース種別",

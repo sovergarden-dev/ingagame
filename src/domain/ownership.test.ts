@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { getOwnershipStatus, isValidSteamAppId, resolveGameSteamAppId } from "./ownership.ts";
+import {
+  getOwnershipStatus,
+  isValidSteamAppId,
+  resolveGameSteamAppId,
+  shouldHideOwnedGame,
+} from "./ownership.ts";
 import type { Game } from "./types.ts";
 
 function createMockGame(overrides: Partial<Game> = {}): Game {
@@ -156,5 +161,29 @@ describe("getOwnershipStatus", () => {
       steamAppId: 730,
     });
     assert.equal(status, "unknown");
+  });
+});
+
+describe("shouldHideOwnedGame", () => {
+  const game = createMockGame({ steamAppId: 730 });
+
+  it("returns false when hideOwned is false", () => {
+    const hidden = shouldHideOwnedGame(game, false, () => "owned");
+    assert.equal(hidden, false);
+  });
+
+  it("returns true only when hideOwned is true and ownership is confirmed owned", () => {
+    const hidden = shouldHideOwnedGame(game, true, () => "owned");
+    assert.equal(hidden, true);
+  });
+
+  it("returns false when ownership is unknown (never false-positive hides unknown games)", () => {
+    const hidden = shouldHideOwnedGame(game, true, () => "unknown");
+    assert.equal(hidden, false);
+  });
+
+  it("returns false when ownership is not_owned", () => {
+    const hidden = shouldHideOwnedGame(game, true, () => "not_owned");
+    assert.equal(hidden, false);
   });
 });

@@ -22,6 +22,9 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { DEFAULT_RADAR_KINDS } from "@/domain/editions";
 import { radarWinners } from "@/domain/conflicts";
+import { shouldHideOwnedGame } from "@/domain/ownership";
+import { usePreferences } from "@/preferences/PreferencesProvider";
+import { useSteam } from "@/integrations/steam/SteamProvider";
 import type { ReleaseKind } from "@/domain/types";
 import { useNow } from "@/hooks/use-now";
 import { canonicalLinks } from "@/domain/seo";
@@ -61,6 +64,15 @@ function Releases() {
   const { t } = useI18n();
   const now = useNow();
   const { wishlist, following } = useLibrary();
+  const { hideOwned, set: setPref } = usePreferences();
+  const { status: steamStatus, syncStatus: steamSyncStatus, getOwnership } = useSteam();
+
+  const canFilterOwned =
+    steamStatus === "connected" &&
+    steamSyncStatus !== "unavailable" &&
+    steamSyncStatus !== "failed";
+  const effectiveHideOwned = hideOwned && canFilterOwned;
+
   const feed = useReleasesFeed();
   const { upcoming, recent } = splitReleaseItems(feed.data?.items ?? [], now);
   const [view, setView] = useState<(typeof VIEWS)[number]["id"]>("rail");
@@ -73,6 +85,7 @@ function Releases() {
       if (kinds.length && !kinds.includes(e.event.kind)) return false;
       if (wishlistOnly && !wishlist.includes(e.game.id)) return false;
       if (followedOnly && !following.includes(e.game.id)) return false;
+      if (shouldHideOwnedGame(e.game, effectiveHideOwned, getOwnership)) return false;
       return true;
     }),
   );
@@ -145,6 +158,28 @@ function Releases() {
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="hide-owned"
+              checked={effectiveHideOwned}
+              disabled={!canFilterOwned}
+              onCheckedChange={(val) => {
+                if (canFilterOwned) {
+                  setPref("hideOwned", val);
+                }
+              }}
+            />
+            <Label
+              htmlFor="hide-owned"
+              className={cn(
+                "text-xs",
+                !canFilterOwned ? "text-muted-foreground/50" : "text-muted-foreground",
+              )}
+              title={!canFilterOwned ? t("steam.signInFirst") : undefined}
+            >
+              {t("filter.hideOwned")}
+            </Label>
+          </div>
           <div className="flex items-center gap-2">
             <Switch id="wishlist-only" checked={wishlistOnly} onCheckedChange={setWishlistOnly} />
             <Label htmlFor="wishlist-only" className="text-xs text-muted-foreground">

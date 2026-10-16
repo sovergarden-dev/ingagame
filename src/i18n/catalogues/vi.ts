@@ -38,6 +38,7 @@ export const vi = {
   "command.action.alerts": "Thông báo",
   "filter.all": "Tất cả",
   "filter.myPlatforms": "Nền tảng của tôi",
+  "filter.hideOwned": "Ẩn game đã có",
   "filter.wishlistOnly": "Chỉ yêu thích",
   "filter.followedOnly": "Chỉ đang theo dõi",
   "filter.releaseType": "Loại phát hành",

@@ -32,6 +32,7 @@ export interface Preferences {
   currency: string;
   titleLanguage: TitleLanguage;
   myPlatforms: PlatformId[];
+  hideOwned: boolean;
 }
 
 const DEFAULTS: Preferences = {
@@ -48,6 +49,7 @@ const DEFAULTS: Preferences = {
   currency: "USD",
   titleLanguage: "original",
   myPlatforms: ["pc", "steam", "playstation", "switch"],
+  hideOwned: false,
 };
 
 interface PreferencesValue extends Preferences {

@@ -38,6 +38,7 @@ export const ko = {
   "command.action.alerts": "알림",
   "filter.all": "전체",
   "filter.myPlatforms": "내 플랫폼",
+  "filter.hideOwned": "보유 게임 숨기기",
   "filter.wishlistOnly": "위시리스트만",
   "filter.followedOnly": "팔로우만",
   "filter.releaseType": "출시 종류",
