@@ -53,6 +53,7 @@ export const en = {
 
   "filter.all": "All",
   "filter.myPlatforms": "My Platforms",
+  "filter.hideOwned": "Hide owned",
   "filter.wishlistOnly": "Wishlist only",
   "filter.followedOnly": "Followed only",
   "filter.releaseType": "Release type",

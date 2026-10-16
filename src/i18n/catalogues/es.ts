@@ -38,6 +38,7 @@ export const es = {
   "command.action.alerts": "Alertas y avisos",
   "filter.all": "Todo",
   "filter.myPlatforms": "Mis plataformas",
+  "filter.hideOwned": "Ocultar en biblioteca",
   "filter.wishlistOnly": "Solo deseados",
   "filter.followedOnly": "Solo seguidos",
   "filter.releaseType": "Tipo de lanzamiento",

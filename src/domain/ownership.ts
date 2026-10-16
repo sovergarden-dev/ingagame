@@ -83,3 +83,17 @@ export function getOwnershipStatus(params: OwnershipStateParams): OwnershipStatu
 
   return "unknown";
 }
+
+/**
+ * Evaluates whether a game should be hidden by the "Hide owned" filter.
+ * Strictly hides only when hideOwned is true AND ownership is confirmed "owned".
+ * Games with status "unknown" or "not_owned" are never hidden.
+ */
+export function shouldHideOwnedGame(
+  game: Game,
+  hideOwned: boolean,
+  getOwnership: (g: Game) => OwnershipStatus,
+): boolean {
+  if (!hideOwned) return false;
+  return getOwnership(game) === "owned";
+}

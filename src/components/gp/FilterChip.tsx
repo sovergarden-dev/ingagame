@@ -5,24 +5,32 @@ import { cn } from "@/lib/utils";
 export function FilterChip({
   active,
   onClick,
+  disabled = false,
+  title,
   children,
   className,
 }: {
   active: boolean;
   onClick: () => void;
+  disabled?: boolean | undefined;
+  title?: string | undefined;
   children: ReactNode;
-  className?: string;
+  className?: string | undefined;
 }) {
   return (
     <button
       type="button"
       aria-pressed={active}
-      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      onClick={disabled ? undefined : onClick}
       className={cn(
         "inline-flex h-11 items-center rounded-full border px-3 text-xs font-medium transition-colors sm:h-7 sm:px-2.5 sm:text-[11px]",
-        active
-          ? "border-accent bg-accent-soft text-accent"
-          : "border-border text-muted-foreground hover:border-border-strong hover:text-foreground",
+        disabled
+          ? "cursor-not-allowed border-border/50 text-muted-foreground/50 opacity-60"
+          : active
+            ? "border-accent bg-accent-soft text-accent"
+            : "border-border text-muted-foreground hover:border-border-strong hover:text-foreground",
         className,
       )}
     >
