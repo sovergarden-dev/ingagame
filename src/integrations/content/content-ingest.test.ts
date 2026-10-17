@@ -1,0 +1,180 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import {
+  handleContentIngest,
+  type IngestDeps,
+} from "../../../supabase/functions/content-ingest/handler.ts";
+import { mapSteamAppToRadarEntry, type RawSteamApp } from "./steam-release-mapper.ts";
+
+const SERVICE_KEY = "test-service-role-key-12345";
+
+function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
+  upserted: { kind: string; externalId: string; publishedAt: string; payload: unknown }[];
+} {
+  const upserted: { kind: string; externalId: string; publishedAt: string; payload: unknown }[] =
+    [];
+  return {
+    serviceRoleKey: SERVICE_KEY,
+    now: () => new Date("2026-10-17T10:00:00.000Z"),
+    upsertItem: async (kind, externalId, publishedAt, payload) => {
+      upserted.push({ kind, externalId, publishedAt, payload });
+      return `id-${upserted.length}`;
+    },
+    mapSteamApp: mapSteamAppToRadarEntry,
+    upserted,
+    ...overrides,
+  };
+}
+
+function req(options: { method?: string; auth?: string; body?: unknown }): Request {
+  const headers = new Headers();
+  if (options.auth) headers.set("authorization", options.auth);
+  if (options.body !== undefined) headers.set("content-type", "application/json");
+
+  const init: RequestInit = {
+    method: options.method ?? "POST",
+    headers,
+  };
+  if (options.body !== undefined) {
+    init.body = JSON.stringify(options.body);
+  }
+
+  return new Request("https://localhost/functions/v1/content-ingest", init);
+}
+
+describe("handleContentIngest - Security & Guards", () => {
+  it("responds to OPTIONS with cors headers", async () => {
+    const deps = mockDeps();
+    const res = await handleContentIngest(req({ method: "OPTIONS" }), deps);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("access-control-allow-origin"), "*");
+  });
+
+  it("rejects non-POST methods with 405", async () => {
+    const deps = mockDeps();
+    const res = await handleContentIngest(req({ method: "GET" }), deps);
+    assert.equal(res.status, 405);
+  });
+
+  it("rejects unauthenticated requests with 401", async () => {
+    const deps = mockDeps();
+    const noAuth = await handleContentIngest(req({ body: {} }), deps);
+    assert.equal(noAuth.status, 401);
+
+    const badAuth = await handleContentIngest(req({ auth: "Bearer wrong-key", body: {} }), deps);
+    assert.equal(badAuth.status, 401);
+  });
+});
+
+describe("handleContentIngest - sync_steam_releases", () => {
+  const sampleApps: RawSteamApp[] = [
+    {
+      id: 1145350,
+      name: "Hades II",
+      header_image: "https://example.com/hades2.jpg",
+      developer: "Supergiant Games",
+      publisher: "Supergiant Games",
+      short_description: "Battle beyond the underworld.",
+      release_date: "2026-11-20",
+    },
+    {
+      id: 1030300,
+      name: "Hollow Knight: Silksong",
+      header_image: "https://example.com/silksong.jpg",
+      developer: "Team Cherry",
+      publisher: "Team Cherry",
+      short_description: "Play as Hornet in a haunted kingdom.",
+      release_date: "Q1 2027",
+    },
+    {
+      id: 9999999,
+      name: "Unannounced Mystery Game",
+      release_date: "Coming Soon", // Pure TBA -> Dropped per Notion Sy06 integrity rules
+    },
+  ];
+
+  it("ingests upcoming Steam releases, upserting with namespaced external_id", async () => {
+    const deps = mockDeps({
+      fetchSteamFeatured: async () => sampleApps,
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_releases" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 200);
+    const json = (await res.json()) as {
+      ok: boolean;
+      synced: number;
+      dropped: number;
+      total: number;
+    };
+    assert.equal(json.ok, true);
+    assert.equal(json.synced, 2);
+    assert.equal(json.dropped, 1); // Coming Soon dropped cleanly
+    assert.equal(json.total, 3);
+
+    // Verify upserted rows
+    assert.equal(deps.upserted.length, 2);
+    assert.equal(deps.upserted[0]?.externalId, "steam:app:1145350");
+    assert.equal(deps.upserted[0]?.kind, "releases");
+    assert.equal(deps.upserted[1]?.externalId, "steam:app:1030300");
+  });
+
+  it("handles upstream Steam failure with 502", async () => {
+    const deps = mockDeps({
+      fetchSteamFeatured: async () => {
+        throw new Error("connection reset");
+      },
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_releases" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 502);
+    const json = (await res.json()) as { error: string };
+    assert.equal(json.error, "steam_fetch_error");
+  });
+});
+
+describe("handleContentIngest - ingest_batch", () => {
+  it("ingests verified items in batch", async () => {
+    const deps = mockDeps();
+    const items = [
+      {
+        kind: "releases" as const,
+        externalId: "custom:1",
+        payload: { test: true },
+      },
+      {
+        kind: "deals" as const,
+        externalId: "custom:deal:1",
+        payload: { discount: 50 },
+      },
+    ];
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "ingest_batch", items },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 200);
+    const json = (await res.json()) as { ok: boolean; synced: number; dropped: number };
+    assert.equal(json.ok, true);
+    assert.equal(json.synced, 2);
+    assert.equal(json.dropped, 0);
+    assert.equal(deps.upserted.length, 2);
+  });
+});
