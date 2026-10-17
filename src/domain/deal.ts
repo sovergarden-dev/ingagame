@@ -1,4 +1,5 @@
-import type { PlatformId } from "./types.ts";
+import type { Game, PlatformId } from "./types.ts";
+import { shouldHideOwnedGame, type OwnershipStatus } from "./ownership.ts";
 
 /** Milliseconds of `endsAt`, or null when the deal has no usable expiry. */
 export function parseDealEndMs(endsAt: string | undefined): number | null {
@@ -69,5 +70,33 @@ export function dealsForGame<T extends { gameId: string; game?: { id?: string; s
     const recordId = nonBlank(deal.gameId) ?? nonBlank(deal.game?.id);
     if (recordId) return targetId === recordId;
     return targetSlug !== undefined && nonBlank(deal.game?.slug) === targetSlug;
+  });
+}
+
+/**
+ * Filters out deals whose associated game is owned on Steam.
+ * Fail-open contract: if deal.game is missing or ownership cannot be determined,
+ * the deal is preserved.
+ */
+export function filterOwnedDeals<T extends { game?: Game }>(
+  deals: T[],
+  owns: (game: Game) => OwnershipStatus,
+): T[] {
+  return deals.filter((deal) => (deal.game ? !shouldHideOwnedGame(deal.game, true, owns) : true));
+}
+
+/**
+ * Filters out giveaways whose associated game is owned on Steam.
+ * Fail-open contract: if game cannot be found or ownership is unknown,
+ * the giveaway is preserved.
+ */
+export function filterOwnedGiveaways<T extends { gameId: string }>(
+  giveaways: T[],
+  getGameFn: (id: string) => Game | undefined,
+  owns: (game: Game) => OwnershipStatus,
+): T[] {
+  return giveaways.filter((g) => {
+    const game = getGameFn(g.gameId);
+    return game ? !shouldHideOwnedGame(game, true, owns) : true;
   });
 }

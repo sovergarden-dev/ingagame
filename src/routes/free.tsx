@@ -1,7 +1,10 @@
+import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { canonicalLinks } from "@/domain/seo";
 import { Gift, Timer } from "lucide-react";
 import { PageShell } from "@/components/gp/PageShell";
+import { FilterChip } from "@/components/gp/FilterChip";
+import { SteamOwnershipBadge } from "@/components/gp/SteamOwnershipBadge";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { EmptyState } from "@/components/gp/EmptyState";
 import { PanelSkeleton } from "@/components/gp/Skeletons";
@@ -10,10 +13,12 @@ import { WishlistButton } from "@/components/gp/WishlistButton";
 import { GIVEAWAYS, getGame } from "@/domain/mock-data";
 import { freshnessFromFeed, showFixtureShelves } from "@/integrations/content/feed";
 import { useReleasesFeed } from "@/integrations/content/use-content-feed";
-import { hasEnded, isEndingSoon } from "@/domain/deal";
+import { filterOwnedGiveaways, hasEnded, isEndingSoon } from "@/domain/deal";
 import { countdownFrom } from "@/domain/release";
 import { useNow } from "@/hooks/use-now";
 import { useI18n } from "@/i18n/I18nProvider";
+import { usePreferences } from "@/preferences/PreferencesProvider";
+import { useSteam } from "@/integrations/steam/SteamProvider";
 import { useGameTitle } from "@/components/gp/use-game-title";
 import type { Giveaway } from "@/domain/types";
 import { Link } from "@tanstack/react-router";
@@ -79,7 +84,10 @@ function GiveawayCard({ giveaway }: { giveaway: Giveaway }) {
                 {title}
               </h3>
             </Link>
-            <p className="truncate text-xs text-muted-foreground">{giveaway.store}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <p className="truncate text-xs text-muted-foreground">{giveaway.store}</p>
+              <SteamOwnershipBadge game={game} variant="compact" />
+            </div>
           </div>
           <WishlistButton gameId={game.id} />
         </div>
@@ -119,8 +127,20 @@ function FreePage() {
   const { t } = useI18n();
   const now = useNow();
   const releasesFeed = useReleasesFeed();
+  const { hideOwned, set: setPref } = usePreferences();
+  const { status: steamStatus, syncStatus: steamSyncStatus, getOwnership } = useSteam();
+  const canFilterOwned =
+    steamStatus === "connected" &&
+    steamSyncStatus !== "unavailable" &&
+    steamSyncStatus !== "failed";
+  const effectiveHideOwned = hideOwned && canFilterOwned;
+
   const fixtures = showFixtureShelves(releasesFeed.data?.source);
-  const giveaways = fixtures ? GIVEAWAYS : [];
+  const rawGiveaways = fixtures ? GIVEAWAYS : [];
+  const giveaways = useMemo(() => {
+    if (!effectiveHideOwned) return rawGiveaways;
+    return filterOwnedGiveaways(rawGiveaways, getGame, getOwnership);
+  }, [rawGiveaways, effectiveHideOwned, getOwnership]);
 
   const expiredList = giveaways.filter((g) => hasEnded(g.endsAt, now));
   const soon = giveaways.filter((g) => isEndingSoon(g.endsAt, now));
@@ -140,6 +160,28 @@ function FreePage() {
       title={t("page.free.title")}
       description={t("page.free.subtitle")}
       freshness={freshness}
+      toolbar={
+        <div className="flex flex-wrap items-center gap-1.5">
+          <FilterChip
+            active={effectiveHideOwned}
+            disabled={!canFilterOwned}
+            onClick={() => {
+              if (canFilterOwned) {
+                setPref("hideOwned", !hideOwned);
+              }
+            }}
+            title={!canFilterOwned ? t("steam.signInFirst") : undefined}
+            aria-label={t("filter.hideOwned")}
+          >
+            {t("filter.hideOwned")}
+          </FilterChip>
+          {waiting || !fixtures ? null : (
+            <span className="ml-auto text-xs text-muted-foreground">
+              {t("deals.count", { count: giveaways.length })}
+            </span>
+          )}
+        </div>
+      }
     >
       {waiting ? (
         <PanelSkeleton />
