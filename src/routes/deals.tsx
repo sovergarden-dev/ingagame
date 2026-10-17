@@ -9,8 +9,9 @@ import { EmptyState } from "@/components/gp/EmptyState";
 import { FeedGate } from "@/components/gp/FeedGate";
 import { freshnessFromFeed } from "@/integrations/content/feed";
 import { feedGateProps, useDealsFeed } from "@/integrations/content/use-content-feed";
-import { dealsForPlatforms, isDealExpired, liveDeals } from "@/domain/deal";
+import { dealsForPlatforms, filterOwnedDeals, isDealExpired, liveDeals } from "@/domain/deal";
 import { usePreferences } from "@/preferences/PreferencesProvider";
+import { useSteam } from "@/integrations/steam/SteamProvider";
 import { countdownFrom } from "@/domain/release";
 import { useNow } from "@/hooks/use-now";
 import { canonicalLinks } from "@/domain/seo";
@@ -94,14 +95,21 @@ function DealsPage() {
   const [sort, setSort] = useState<SortId>("discount");
   const [stores, setStores] = useState<string[]>([]);
   const [mineOnly, setMineOnly] = useState(false);
-  const { myPlatforms } = usePreferences();
+  const { myPlatforms, hideOwned, set: setPref } = usePreferences();
+  const { status: steamStatus, syncStatus: steamSyncStatus, getOwnership } = useSteam();
+  const canFilterOwned =
+    steamStatus === "connected" &&
+    steamSyncStatus !== "unavailable" &&
+    steamSyncStatus !== "failed";
+  const effectiveHideOwned = hideOwned && canFilterOwned;
 
   const allStores = useMemo(() => [...new Set(deals.map((d) => d.store))].sort(), [deals]);
   const filtered = useMemo(() => {
     const storeScoped = stores.length ? deals.filter((d) => stores.includes(d.store)) : deals;
     const scoped = mineOnly ? dealsForPlatforms(storeScoped, myPlatforms) : storeScoped;
-    return sortDeals(scoped, sort, now);
-  }, [deals, sort, stores, now, mineOnly, myPlatforms]);
+    const ownershipScoped = effectiveHideOwned ? filterOwnedDeals(scoped, getOwnership) : scoped;
+    return sortDeals(ownershipScoped, sort, now);
+  }, [deals, sort, stores, now, mineOnly, myPlatforms, effectiveHideOwned, getOwnership]);
   const featured = filtered.slice(0, 3);
   const rest = filtered.slice(3);
   const freshness = freshnessFromFeed(feed.data, feed.isPending, Date.now(), feed.isError);
@@ -125,6 +133,19 @@ function DealsPage() {
           />
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="gp-eyebrow mr-1">{t("deals.store")}</span>
+            <FilterChip
+              active={effectiveHideOwned}
+              disabled={!canFilterOwned}
+              onClick={() => {
+                if (canFilterOwned) {
+                  setPref("hideOwned", !hideOwned);
+                }
+              }}
+              title={!canFilterOwned ? t("steam.signInFirst") : undefined}
+              aria-label={t("filter.hideOwned")}
+            >
+              {t("filter.hideOwned")}
+            </FilterChip>
             <FilterChip active={mineOnly} onClick={() => setMineOnly((value) => !value)}>
               {t("filter.myPlatforms")}
             </FilterChip>

@@ -4,6 +4,7 @@ import { isDealExpired } from "@/domain/deal";
 import { useNow } from "@/hooks/use-now";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useGameTitle } from "./use-game-title";
+import { SteamOwnershipBadge } from "./SteamOwnershipBadge";
 import { cn } from "@/lib/utils";
 
 function money(value: number, currency: string, locale: string) {
@@ -84,7 +85,10 @@ export function DealCard({
           {discountLabel}
         </span>
         <div className="absolute inset-x-3 bottom-2">
-          <p className="truncate text-sm font-semibold text-foreground">{title}</p>
+          <div className="flex items-center justify-between gap-1">
+            <p className="truncate text-sm font-semibold text-foreground">{title}</p>
+            <SteamOwnershipBadge game={game} variant="compact" />
+          </div>
           <p className="text-xs">
             <span className="font-semibold text-foreground">
               {money(deal.priceCurrent, deal.currency, locale)}
@@ -117,9 +121,12 @@ export function DealCard({
         className="size-11 shrink-0 rounded-md border border-border object-cover"
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground group-hover:text-accent">
-          {title}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="truncate text-sm font-medium text-foreground group-hover:text-accent">
+            {title}
+          </p>
+          <SteamOwnershipBadge game={game} variant="compact" />
+        </div>
         <p className="truncate text-xs text-muted-foreground">{deal.store}</p>
       </div>
       <span
