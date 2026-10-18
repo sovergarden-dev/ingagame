@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react
 import {
   allowMockContentFeed,
   getDeals,
+  getFreeOffers,
   getNews,
   getReleases,
   requireFeedSuccess,
@@ -18,13 +19,20 @@ export function getEffectiveFeedMode(
   return "hybrid";
 }
 
-export function contentFeedQueryKey(kind: ContentKind, mode: string = getEffectiveFeedMode()) {
-  return ["content-feed", mode, kind] as const;
+export function contentFeedQueryKey(
+  kind: ContentKind,
+  mode: string = getEffectiveFeedMode(),
+  subScope?: string,
+) {
+  return subScope
+    ? (["content-feed", mode, kind, subScope] as const)
+    : (["content-feed", mode, kind] as const);
 }
 
 export const CONTENT_FEED_KEY = {
   releases: contentFeedQueryKey("releases"),
   deals: contentFeedQueryKey("deals"),
+  free: contentFeedQueryKey("deals", getEffectiveFeedMode(), "free"),
   news: contentFeedQueryKey("news"),
 };
 
@@ -46,6 +54,14 @@ export function useDealsFeed() {
   return useQuery({
     queryKey: contentFeedQueryKey("deals"),
     queryFn: async () => requireFeedSuccess(await getDeals()),
+    ...FEED_QUERY,
+  });
+}
+
+export function useFreeOffersFeed() {
+  return useQuery({
+    queryKey: contentFeedQueryKey("deals", getEffectiveFeedMode(), "free"),
+    queryFn: async () => requireFeedSuccess(await getFreeOffers()),
     ...FEED_QUERY,
   });
 }

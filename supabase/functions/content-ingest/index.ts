@@ -31,6 +31,10 @@ Deno.serve((req) =>
       expiresAt,
       offerState,
       sourceFreshUntil,
+      offerType,
+      claimEndsAt,
+      accessEndsAt,
+      classificationStatus,
     ) => {
       const { data, error } = await supabase.rpc("upsert_content_item", {
         p_kind: kind,
@@ -40,6 +44,10 @@ Deno.serve((req) =>
         p_expires_at: expiresAt ?? null,
         p_offer_state: offerState ?? "active",
         p_source_fresh_until: sourceFreshUntil ?? null,
+        p_offer_type: offerType ?? "discount",
+        p_claim_ends_at: claimEndsAt ?? null,
+        p_access_ends_at: accessEndsAt ?? null,
+        p_classification_status: classificationStatus ?? "unverified",
       });
       if (error) throw error;
       return String(data);

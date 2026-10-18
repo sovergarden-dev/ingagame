@@ -1,4 +1,4 @@
-import type { Deal, GameSummary } from "../../domain/types.ts";
+import type { ClassificationStatus, Deal, GameSummary, OfferType } from "../../domain/types.ts";
 import { isDealItem } from "./feed.ts";
 
 export interface RawSteamSpecial {
@@ -21,6 +21,10 @@ export interface MappedSteamDeal {
   expiresAt: string | null;
   sourceFreshUntil: string;
   offerState: "active" | "expired" | "withdrawn";
+  offerType: OfferType;
+  claimEndsAt: string | null;
+  accessEndsAt: string | null;
+  classificationStatus: ClassificationStatus;
 }
 
 export function buildSteamDealExternalId(appId: number, market = "us", currency = "USD"): string {
@@ -101,6 +105,26 @@ export function mapSteamSpecialToDeal(
     observedAt: now.toISOString(),
   };
 
+  // Semantic offer classification per Notion Sy06:
+  // Do NOT automatically infer free_to_keep from priceCurrent=0 / discountPercent=100.
+  // 100% discount with an explicit expiration is a candidate for free_to_keep;
+  // without expiration, it could be permanently free or a pricing anomaly -> "unknown" / "unverified".
+  let offerType: OfferType = "discount";
+  let classificationStatus: ClassificationStatus = "verified";
+
+  if (special.discount_percent === 100 || special.final_price === 0) {
+    if (endsAt) {
+      offerType = "free_to_keep";
+      classificationStatus = "verified";
+    } else {
+      offerType = "unknown";
+      classificationStatus = "unverified";
+    }
+  }
+
+  const claimEndsAt = endsAt ?? null;
+  const accessEndsAt = null;
+
   const deal: Deal = {
     id: dealId,
     gameId,
@@ -111,6 +135,9 @@ export function mapSteamSpecialToDeal(
     currency,
     url: `https://store.steampowered.com/app/${special.id}`,
     gameSummary,
+    offerType,
+    classificationStatus,
+    ...(claimEndsAt ? { claimEndsAt } : {}),
     ...(endsAt ? { endsAt } : {}),
   };
 
@@ -128,5 +155,9 @@ export function mapSteamSpecialToDeal(
     expiresAt: endsAt ?? null,
     sourceFreshUntil,
     offerState: "active",
+    offerType,
+    claimEndsAt,
+    accessEndsAt,
+    classificationStatus,
   };
 }

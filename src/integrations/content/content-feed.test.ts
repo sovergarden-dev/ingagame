@@ -30,6 +30,15 @@ describe("parseFeedSearchParams", () => {
 
     const ok = parseFeedSearchParams(feedUrl("?kind=deals"));
     assert.deepEqual(ok, { ok: true, kind: "deals", since: null, limit: 50 });
+
+    const withOfferType = parseFeedSearchParams(feedUrl("?kind=deals&offer_type=free_to_keep"));
+    assert.deepEqual(withOfferType, {
+      ok: true,
+      kind: "deals",
+      since: null,
+      limit: 50,
+      offerType: "free_to_keep",
+    });
   });
 
   it("parses since ISO and clamps limit to 1..100", () => {

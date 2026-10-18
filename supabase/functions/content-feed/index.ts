@@ -9,11 +9,21 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 Deno.serve((req) =>
-  handleContentFeed(req, async ({ kind, since, limit, nowIso }) => {
+  handleContentFeed(req, async ({ kind, since, limit, nowIso, offerType }) => {
     let query = supabase.from("content_items").select("payload, published_at").eq("kind", kind);
 
     if (kind === "deals") {
-      query = query.eq("offer_state", "active").or(`expires_at.is.null,expires_at.gt.${nowIso}`);
+      query = query.eq("offer_state", "active");
+      if (offerType) {
+        query = query.eq("offer_type", offerType);
+        if (offerType === "free_to_keep" || offerType === "free_weekend") {
+          query = query.or(`claim_ends_at.is.null,claim_ends_at.gt.${nowIso}`);
+        } else {
+          query = query.or(`expires_at.is.null,expires_at.gt.${nowIso}`);
+        }
+      } else {
+        query = query.or(`expires_at.is.null,expires_at.gt.${nowIso}`);
+      }
     }
 
     query = query.order("published_at", { ascending: false }).limit(limit);

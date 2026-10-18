@@ -14,6 +14,7 @@ export type FeedQueryParams = {
   kind: ContentKind;
   since: string | null;
   limit: number;
+  offerType?: string;
 };
 
 export type FeedQuery = FeedQueryParams & {
@@ -63,7 +64,20 @@ export function parseFeedSearchParams(url: URL): ParseFeedResult {
     limit = Math.min(MAX_LIMIT, Math.max(1, Math.trunc(n)));
   }
 
-  return { ok: true, kind, since, limit };
+  const offerTypeRaw = url.searchParams.get("offer_type") ?? url.searchParams.get("offerType");
+  const offerType =
+    offerTypeRaw &&
+    ["free_to_keep", "free_weekend", "trial", "permanently_free", "discount"].includes(offerTypeRaw)
+      ? offerTypeRaw
+      : undefined;
+
+  return {
+    ok: true,
+    kind,
+    since,
+    limit,
+    ...(offerType ? { offerType } : {}),
+  };
 }
 
 export function toPublicItem(payload: unknown): unknown | null {

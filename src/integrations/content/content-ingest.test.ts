@@ -19,6 +19,10 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
     expiresAt?: string | null;
     offerState?: string;
     sourceFreshUntil?: string | null;
+    offerType?: string;
+    claimEndsAt?: string | null;
+    accessEndsAt?: string | null;
+    classificationStatus?: string;
   }[];
 } {
   const upserted: {
@@ -29,6 +33,10 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
     expiresAt?: string | null;
     offerState?: string;
     sourceFreshUntil?: string | null;
+    offerType?: string;
+    claimEndsAt?: string | null;
+    accessEndsAt?: string | null;
+    classificationStatus?: string;
   }[] = [];
   return {
     serviceRoleKey: SERVICE_KEY,
@@ -41,6 +49,10 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
       expiresAt,
       offerState,
       sourceFreshUntil,
+      offerType,
+      claimEndsAt,
+      accessEndsAt,
+      classificationStatus,
     ) => {
       upserted.push({
         kind,
@@ -50,6 +62,10 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
         ...(expiresAt !== undefined ? { expiresAt } : {}),
         ...(offerState !== undefined ? { offerState } : {}),
         ...(sourceFreshUntil !== undefined ? { sourceFreshUntil } : {}),
+        ...(offerType !== undefined ? { offerType } : {}),
+        ...(claimEndsAt !== undefined ? { claimEndsAt } : {}),
+        ...(accessEndsAt !== undefined ? { accessEndsAt } : {}),
+        ...(classificationStatus !== undefined ? { classificationStatus } : {}),
       });
       return `id-${upserted.length}`;
     },
@@ -263,6 +279,8 @@ describe("handleContentIngest - sync_steam_deals", () => {
     assert.equal(deps.upserted.length, 1);
     assert.equal(deps.upserted[0]?.kind, "deals");
     assert.equal(deps.upserted[0]?.externalId, "steam:app:1145350:market:us:currency:USD");
+    assert.equal(deps.upserted[0]?.offerType, "discount");
+    assert.equal(deps.upserted[0]?.classificationStatus, "verified");
   });
 });
 
