@@ -1,6 +1,38 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { articlesForFollowed, articlesForGame } from "./news.ts";
+import { articlesForFollowed, articlesForGame, toGameSummary } from "./news.ts";
+import type { Game, GameSummary } from "./types.ts";
+
+describe("toGameSummary", () => {
+  it("converts Game entity to minimal compliant GameSummary", () => {
+    const game = {
+      id: "steam-1145350",
+      slug: "hades-ii",
+      title: "Hades II",
+      developer: "Supergiant Games",
+      publisher: "Supergiant Games",
+      summary: "Action rogue-like.",
+      genres: ["Action", "Roguelike"],
+      coverUrl: "https://example.test/cover.jpg",
+      platforms: ["pc"],
+      releaseEvents: [],
+      steamAppId: 1145350,
+    } as unknown as Game;
+
+    const summary = toGameSummary(game);
+    assert.ok(summary);
+    assert.equal(summary.id, "steam-1145350");
+    assert.equal(summary.title, "Hades II");
+    assert.equal(summary.coverUrl, "https://example.test/cover.jpg");
+    assert.equal(summary.steamAppId, 1145350);
+    assert.equal(summary.source, "catalogue");
+    assert.ok(summary.observedAt);
+  });
+
+  it("returns undefined when game is undefined", () => {
+    assert.equal(toGameSummary(undefined), undefined);
+  });
+});
 
 describe("articlesForFollowed", () => {
   it("keeps articles for followed games and drops the rest", () => {
