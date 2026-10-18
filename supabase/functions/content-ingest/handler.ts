@@ -49,6 +49,10 @@ export type IngestDeps = {
     expiresAt?: string | null,
     offerState?: string,
     sourceFreshUntil?: string | null,
+    offerType?: string,
+    claimEndsAt?: string | null,
+    accessEndsAt?: string | null,
+    classificationStatus?: string,
   ) => Promise<string>;
   fetchSteamFeatured?: () => Promise<RawSteamApp[]>;
   mapSteamApp?: (app: RawSteamApp) => MappedRadarEntry | null;
@@ -62,6 +66,10 @@ export type IngestDeps = {
     expiresAt?: string | null;
     offerState?: string;
     sourceFreshUntil?: string | null;
+    offerType?: string;
+    claimEndsAt?: string | null;
+    accessEndsAt?: string | null;
+    classificationStatus?: string;
   } | null;
   fetchSteamNews?: (appId: number) => Promise<unknown[]>;
   mapSteamNews?: (item: unknown) => { article: unknown; externalId: string } | null;
@@ -248,6 +256,10 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
           mapped.expiresAt ?? null,
           mapped.offerState ?? "active",
           mapped.sourceFreshUntil ?? null,
+          mapped.offerType ?? "discount",
+          mapped.claimEndsAt ?? null,
+          mapped.accessEndsAt ?? null,
+          mapped.classificationStatus ?? "unverified",
         );
         synced++;
       } catch (err) {

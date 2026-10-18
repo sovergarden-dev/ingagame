@@ -55,7 +55,7 @@ describe("mapSteamSpecialToDeal", () => {
     assert.ok(isDealItem(res.deal));
   });
 
-  it("handles free/100% discount correctly", () => {
+  it("classifies 100% discount with expiry as verified free_to_keep", () => {
     const freeSpecial: RawSteamSpecial = {
       ...validSpecial,
       discount_percent: 100,
@@ -65,6 +65,26 @@ describe("mapSteamSpecialToDeal", () => {
     assert.ok(res);
     assert.equal(res.deal.priceCurrent, 0);
     assert.equal(res.deal.discountPercent, 100);
+    assert.equal(res.offerType, "free_to_keep");
+    assert.equal(res.classificationStatus, "verified");
+    assert.equal(res.deal.offerType, "free_to_keep");
+    assert.equal(res.claimEndsAt, res.deal.endsAt);
+    assert.ok(isDealItem(res.deal));
+  });
+
+  it("classifies 100% discount without expiry as unknown unverified offer per Notion Sy06", () => {
+    const { discount_expiration: _, ...noExpiry } = validSpecial;
+    const freeNoExpiry: RawSteamSpecial = {
+      ...noExpiry,
+      discount_percent: 100,
+      final_price: 0,
+    };
+    const res = mapSteamSpecialToDeal(freeNoExpiry);
+    assert.ok(res);
+    assert.equal(res.offerType, "unknown");
+    assert.equal(res.classificationStatus, "unverified");
+    assert.equal(res.deal.offerType, "unknown");
+    assert.equal(res.claimEndsAt, null);
     assert.ok(isDealItem(res.deal));
   });
 
@@ -77,6 +97,8 @@ describe("mapSteamSpecialToDeal", () => {
     assert.equal(res.expiresAt, null);
     assert.equal(res.sourceFreshUntil, "2026-10-19T00:00:00.000Z"); // 24h fallback TTL
     assert.equal(res.offerState, "active");
+    assert.equal(res.offerType, "discount");
+    assert.equal(res.classificationStatus, "verified");
     assert.ok(isDealItem(res.deal));
   });
 

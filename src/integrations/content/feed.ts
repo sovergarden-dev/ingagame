@@ -35,6 +35,7 @@ export type ViteEnvSlice = {
 export type FetchContentKindOptions<T> = {
   since?: string;
   limit?: number;
+  offerType?: string;
   fetch?: typeof fetch;
   env?: ViteEnvSlice;
   mockItems?: T[];
@@ -43,13 +44,14 @@ export type FetchContentKindOptions<T> = {
 export function contentFeedUrl(
   baseUrl: string,
   kind: ContentKind,
-  opts: { since?: string; limit?: number } = {},
+  opts: { since?: string; limit?: number; offerType?: string } = {},
 ): string {
   const root = baseUrl.replace(/\/$/, "");
   const url = new URL(`${root}/functions/v1/content-feed`);
   url.searchParams.set("kind", kind);
   if (opts.since) url.searchParams.set("since", opts.since);
   if (opts.limit != null) url.searchParams.set("limit", String(opts.limit));
+  if (opts.offerType) url.searchParams.set("offer_type", opts.offerType);
   return url.toString();
 }
 
@@ -131,9 +133,10 @@ export async function fetchContentKind<T>(
   const publishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_PUBLISHABLE_KEY;
   if (!baseUrl || !publishableKey) return fallback("error");
 
-  const feedOpts: { since?: string; limit?: number } = {};
+  const feedOpts: { since?: string; limit?: number; offerType?: string } = {};
   if (options.since) feedOpts.since = options.since;
   if (options.limit != null) feedOpts.limit = options.limit;
+  if (options.offerType) feedOpts.offerType = options.offerType;
 
   try {
     const fetchFn = options.fetch ?? fetch;
@@ -427,6 +430,22 @@ export async function getDeals(
 ): Promise<ContentFeedResult<Deal>> {
   const mockItems = options.mockItems ?? ((await devMockItems("deals")) as Deal[]);
   const result = await fetchContentKind("deals", { ...options, mockItems });
+  const selected = withSelectedItems(result, selectDealItems(result.items));
+  return devMockIfUnrenderable(selected, mockItems, options.env ?? readViteEnv());
+}
+
+export async function getFreeOffers(
+  options: FetchContentKindOptions<Deal> = {},
+): Promise<ContentFeedResult<Deal>> {
+  const allMockDeals = (await devMockItems("deals")) as Deal[];
+  const mockItems =
+    options.mockItems ??
+    allMockDeals.filter((deal) => deal.discountPercent === 100 || deal.priceCurrent === 0);
+  const result = await fetchContentKind("deals", {
+    ...options,
+    offerType: "free_to_keep",
+    mockItems,
+  });
   const selected = withSelectedItems(result, selectDealItems(result.items));
   return devMockIfUnrenderable(selected, mockItems, options.env ?? readViteEnv());
 }

@@ -89,6 +89,11 @@ export interface GameSummary {
   observedAt?: string;
 }
 
+export type OfferType =
+  "free_to_keep" | "free_weekend" | "trial" | "permanently_free" | "discount" | "unknown";
+
+export type ClassificationStatus = "unverified" | "verified" | "flagged";
+
 export interface Deal {
   id: string;
   gameId: string;
@@ -101,6 +106,11 @@ export interface Deal {
   url?: string;
   /** Sourced minimal game summary (title, cover, steamAppId, platform availability). */
   gameSummary?: GameSummary;
+  /** Semantic offer classification per Notion Sy06. */
+  offerType?: OfferType;
+  claimEndsAt?: string;
+  accessEndsAt?: string;
+  classificationStatus?: ClassificationStatus;
   /** Denormalized catalogue snapshot from content-feed when present. */
   game?: Game;
 }
@@ -112,6 +122,12 @@ export interface Giveaway {
   endsAt: string;
   worth?: number;
   currency?: string;
+  url?: string;
+  offerType?: OfferType;
+  claimEndsAt?: string;
+  accessEndsAt?: string;
+  gameSummary?: GameSummary;
+  game?: Game;
 }
 
 export interface Article {
