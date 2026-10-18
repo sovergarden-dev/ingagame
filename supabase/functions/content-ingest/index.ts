@@ -20,6 +20,31 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 Deno.serve((req) =>
   handleContentIngest(req, {
     serviceRoleKey,
+    claimRun: async (action, trigger = "manual") => {
+      const { data, error } = await supabase.rpc("claim_ingestion_run", {
+        p_action: action,
+        p_trigger: trigger,
+        p_lease_seconds: 300,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return {
+        claimed: Boolean(row?.claimed),
+        runId: row?.run_id ? String(row.run_id) : undefined,
+      };
+    },
+    finalizeRun: async (runId, status, stats) => {
+      const { data, error } = await supabase.rpc("finalize_ingestion_run", {
+        p_run_id: runId,
+        p_status: status,
+        p_synced: stats.synced,
+        p_dropped: stats.dropped,
+        p_total: stats.total,
+        p_error: stats.error ?? null,
+      });
+      if (error) throw error;
+      return Boolean(data);
+    },
     mapSteamApp: mapSteamAppToRadarEntry,
     mapSteamDeal: (special) => mapSteamSpecialToDeal(special as unknown as RawSteamSpecial),
     mapSteamNews: (item) => mapSteamNewsToArticle(item as unknown as RawSteamNewsItem),
