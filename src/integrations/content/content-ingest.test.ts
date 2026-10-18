@@ -5,6 +5,8 @@ import {
   type IngestDeps,
 } from "../../../supabase/functions/content-ingest/handler.ts";
 import { mapSteamAppToRadarEntry, type RawSteamApp } from "./steam-release-mapper.ts";
+import { mapSteamSpecialToDeal, type RawSteamSpecial } from "./steam-deals-mapper.ts";
+import { mapSteamNewsToArticle, type RawSteamNewsItem } from "./steam-news-mapper.ts";
 
 const SERVICE_KEY = "test-service-role-key-12345";
 
@@ -21,6 +23,8 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
       return `id-${upserted.length}`;
     },
     mapSteamApp: mapSteamAppToRadarEntry,
+    mapSteamDeal: (item) => mapSteamSpecialToDeal(item as RawSteamSpecial),
+    mapSteamNews: (item) => mapSteamNewsToArticle(item as RawSteamNewsItem),
     upserted,
     ...overrides,
   };
@@ -176,5 +180,112 @@ describe("handleContentIngest - ingest_batch", () => {
     assert.equal(json.synced, 2);
     assert.equal(json.dropped, 0);
     assert.equal(deps.upserted.length, 2);
+  });
+});
+
+describe("handleContentIngest - sync_steam_deals", () => {
+  const sampleSpecials: RawSteamSpecial[] = [
+    {
+      id: 1145350,
+      name: "Hades II",
+      header_image: "https://example.com/hades2.jpg",
+      discount_percent: 40,
+      original_price: 2999,
+      final_price: 1799,
+      currency: "USD",
+      discount_expiration: 1792128000,
+    },
+    {
+      id: 9999999,
+      name: "Invalid Broken Deal",
+      discount_percent: 120, // Invalid discount -> dropped
+      original_price: 1000,
+      final_price: 2000, // Invalid current > base
+    },
+  ];
+
+  it("ingests Steam specials, creating Deals with external_id namespace", async () => {
+    const deps = mockDeps({
+      fetchSteamSpecials: async () => sampleSpecials,
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_deals" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 200);
+    const json = (await res.json()) as {
+      ok: boolean;
+      synced: number;
+      dropped: number;
+      total: number;
+    };
+    assert.equal(json.ok, true);
+    assert.equal(json.synced, 1);
+    assert.equal(json.dropped, 1);
+    assert.equal(json.total, 2);
+
+    assert.equal(deps.upserted.length, 1);
+    assert.equal(deps.upserted[0]?.kind, "deals");
+    assert.equal(deps.upserted[0]?.externalId, "steam:app:1145350:market:us:currency:USD");
+  });
+});
+
+describe("handleContentIngest - sync_steam_news", () => {
+  const sampleNews: RawSteamNewsItem[] = [
+    {
+      gid: "998877665544",
+      title: "Major Update - The Olympic Trials",
+      url: "https://store.steampowered.com/news/app/1145350/view/998877665544",
+      author: "Supergiant Games",
+      contents: "Detailed notes for the big major update with new areas.",
+      feedlabel: "Steam Announcements",
+      date: 1792128000,
+      feedname: "steam_announcements",
+      appid: 1145350,
+    },
+    {
+      gid: "112233445566",
+      title: "Hotfix 1.0.1 - Typo fixes in Russian",
+      url: "https://store.steampowered.com/news/app/1145350/view/112233445566",
+      author: "Supergiant Games",
+      contents: "Fixed small typos.",
+      date: 1792128000,
+      appid: 1145350, // Dropped per Notion Sy06 hygiene rules
+    },
+  ];
+
+  it("ingests Steam news, keeping major announcements and filtering minor patches", async () => {
+    const deps = mockDeps({
+      fetchSteamNews: async () => sampleNews,
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_news", appId: 1145350 },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 200);
+    const json = (await res.json()) as {
+      ok: boolean;
+      synced: number;
+      dropped: number;
+      total: number;
+    };
+    assert.equal(json.ok, true);
+    assert.equal(json.synced, 1);
+    assert.equal(json.dropped, 1); // Minor patch dropped cleanly
+    assert.equal(json.total, 2);
+
+    assert.equal(deps.upserted.length, 1);
+    assert.equal(deps.upserted[0]?.kind, "news");
+    assert.equal(deps.upserted[0]?.externalId, "news:steam:app:1145350:998877665544");
   });
 });

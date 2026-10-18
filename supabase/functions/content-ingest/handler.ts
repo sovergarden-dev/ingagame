@@ -49,6 +49,10 @@ export type IngestDeps = {
   ) => Promise<string>;
   fetchSteamFeatured?: () => Promise<RawSteamApp[]>;
   mapSteamApp?: (app: RawSteamApp) => MappedRadarEntry | null;
+  fetchSteamSpecials?: () => Promise<unknown[]>;
+  mapSteamDeal?: (special: unknown) => { deal: unknown; externalId: string } | null;
+  fetchSteamNews?: (appId: number) => Promise<unknown[]>;
+  mapSteamNews?: (item: unknown) => { article: unknown; externalId: string } | null;
 };
 
 function jsonResponse(body: unknown, status: number): Response {
@@ -80,6 +84,35 @@ export async function fetchLiveSteamFeatured(): Promise<RawSteamApp[]> {
   }
   const json = (await res.json()) as { coming_soon?: { items?: RawSteamApp[] } };
   return json?.coming_soon?.items ?? [];
+}
+
+export async function fetchLiveSteamSpecials(): Promise<unknown[]> {
+  const res = await fetch(STEAM_FEATURED_URL, {
+    headers: {
+      "User-Agent": "GamePulse-Ingest/1.0",
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`steam_specials_fetch_failed: ${res.status}`);
+  }
+  const json = (await res.json()) as { specials?: { items?: unknown[] } };
+  return json?.specials?.items ?? [];
+}
+
+export async function fetchLiveSteamNews(appId: number): Promise<unknown[]> {
+  const url = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${appId}&count=10&maxlength=500&format=json`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "GamePulse-Ingest/1.0",
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`steam_news_fetch_failed: ${res.status}`);
+  }
+  const json = (await res.json()) as { appnews?: { newsitems?: unknown[] } };
+  return json?.appnews?.newsitems ?? [];
 }
 
 export async function handleContentIngest(req: Request, deps: IngestDeps): Promise<Response> {
@@ -158,6 +191,118 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
         synced,
         dropped,
         total: apps.length,
+        errors: errors.slice(0, 10),
+      },
+      200,
+    );
+  }
+
+  if (action === "sync_steam_deals") {
+    const mapper = deps.mapSteamDeal;
+    if (!mapper) {
+      return jsonResponse({ error: "missing_deal_mapper" }, 500);
+    }
+
+    const fetcher = deps.fetchSteamSpecials ?? fetchLiveSteamSpecials;
+    let specials: unknown[] = [];
+    try {
+      specials = await fetcher();
+    } catch (err) {
+      return jsonResponse(
+        {
+          error: "steam_specials_fetch_error",
+          details: err instanceof Error ? err.message : String(err),
+        },
+        502,
+      );
+    }
+
+    let synced = 0;
+    let dropped = 0;
+    const errors: string[] = [];
+
+    for (const item of specials) {
+      const mapped = mapper(item);
+      if (!mapped) {
+        dropped++;
+        continue;
+      }
+      try {
+        await deps.upsertItem("deals", mapped.externalId, now.toISOString(), mapped.deal);
+        synced++;
+      } catch (err) {
+        dropped++;
+        errors.push(
+          `upsert_failed:${mapped.externalId}:${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    return jsonResponse(
+      {
+        ok: true,
+        action: "sync_steam_deals",
+        synced,
+        dropped,
+        total: specials.length,
+        errors: errors.slice(0, 10),
+      },
+      200,
+    );
+  }
+
+  if (action === "sync_steam_news") {
+    const mapper = deps.mapSteamNews;
+    if (!mapper) {
+      return jsonResponse({ error: "missing_news_mapper" }, 500);
+    }
+
+    const appIdRaw = (payload as { appId?: unknown }).appId;
+    const appId = typeof appIdRaw === "number" && appIdRaw > 0 ? appIdRaw : 1145350;
+
+    const fetcher = deps.fetchSteamNews ?? fetchLiveSteamNews;
+    let newsItems: unknown[] = [];
+    try {
+      newsItems = await fetcher(appId);
+    } catch (err) {
+      return jsonResponse(
+        {
+          error: "steam_news_fetch_error",
+          details: err instanceof Error ? err.message : String(err),
+        },
+        502,
+      );
+    }
+
+    let synced = 0;
+    let dropped = 0;
+    const errors: string[] = [];
+
+    for (const item of newsItems) {
+      const mapped = mapper(item);
+      if (!mapped) {
+        dropped++;
+        continue;
+      }
+      try {
+        await deps.upsertItem("news", mapped.externalId, now.toISOString(), mapped.article);
+        synced++;
+      } catch (err) {
+        dropped++;
+        errors.push(
+          `upsert_failed:${mapped.externalId}:${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    return jsonResponse(
+      {
+        ok: true,
+        action: "sync_steam_news",
+        appId,
+        synced,
+        dropped,
+        total: newsItems.length,
         errors: errors.slice(0, 10),
       },
       200,
