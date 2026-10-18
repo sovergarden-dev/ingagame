@@ -50,6 +50,7 @@ Deno.serve((req) =>
     mapSteamDeal: (special) => mapSteamSpecialToDeal(special as unknown as RawSteamSpecial),
     mapSteamNews: (item) => mapSteamNewsToArticle(item as unknown as RawSteamNewsItem),
     upsertItem: async (
+      runId,
       kind,
       externalId,
       publishedAt,
@@ -63,6 +64,7 @@ Deno.serve((req) =>
       classificationStatus,
     ) => {
       const { data, error } = await supabase.rpc("upsert_content_item", {
+        p_run_id: runId,
         p_kind: kind,
         p_external_id: externalId,
         p_published_at: publishedAt,
