@@ -1,6 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { handleContentIngest } from "./handler.ts";
 import { mapSteamAppToRadarEntry } from "../../src/integrations/content/steam-release-mapper.ts";
+import { mapSteamSpecialToDeal } from "../../src/integrations/content/steam-deals-mapper.ts";
+import { mapSteamNewsToArticle } from "../../src/integrations/content/steam-news-mapper.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -13,6 +15,8 @@ Deno.serve((req) =>
   handleContentIngest(req, {
     serviceRoleKey,
     mapSteamApp: mapSteamAppToRadarEntry,
+    mapSteamDeal: (special) => mapSteamSpecialToDeal(special as any),
+    mapSteamNews: (item) => mapSteamNewsToArticle(item as any),
     upsertItem: async (kind, externalId, publishedAt, payload) => {
       const { data, error } = await supabase.rpc("upsert_content_item", {
         p_kind: kind,
