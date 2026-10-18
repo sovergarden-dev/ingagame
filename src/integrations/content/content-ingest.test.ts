@@ -12,6 +12,7 @@ const SERVICE_KEY = "test-service-role-key-12345";
 
 function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
   upserted: {
+    runId: string;
     kind: string;
     externalId: string;
     publishedAt: string;
@@ -26,6 +27,7 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
   }[];
 } {
   const upserted: {
+    runId: string;
     kind: string;
     externalId: string;
     publishedAt: string;
@@ -42,6 +44,7 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
     serviceRoleKey: SERVICE_KEY,
     now: () => new Date("2026-10-17T10:00:00.000Z"),
     upsertItem: async (
+      runId,
       kind,
       externalId,
       publishedAt,
@@ -55,6 +58,7 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
       classificationStatus,
     ) => {
       upserted.push({
+        runId,
         kind,
         externalId,
         publishedAt,
@@ -471,5 +475,79 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
     assert.equal(json.action, "sync_steam_deals");
     assert.equal(json.reason, "cooldown_active");
     assert.equal(deps.upserted.length, 0);
+  });
+
+  it("passes active runId to upsertItem for each synced item", async () => {
+    const sample = [
+      {
+        id: 100,
+        name: "Game 1",
+        discount_percent: 20,
+        original_price: 2000,
+        final_price: 1600,
+      },
+    ];
+
+    const deps = mockDeps({
+      fetchSteamSpecials: async () => sample,
+      claimRun: async () => ({ claimed: true, runId: "run-fenced-999" }),
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_deals" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal(deps.upserted.length, 1);
+    assert.equal(deps.upserted[0]?.runId, "run-fenced-999");
+  });
+
+  it("aborts sync loop and returns 409 when upsertItem throws lease_lost", async () => {
+    const sample = [
+      { id: 100, name: "Game 1", discount_percent: 20, original_price: 2000, final_price: 1600 },
+      { id: 101, name: "Game 2", discount_percent: 30, original_price: 3000, final_price: 2100 },
+    ];
+    let calls = 0;
+    const deps = mockDeps({
+      fetchSteamSpecials: async () => sample,
+      claimRun: async () => ({ claimed: true, runId: "run-stale" }),
+      upsertItem: async () => {
+        calls++;
+        throw new Error("lease_expired: lease for run run-stale expired");
+      },
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_deals" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 409);
+    const json = (await res.json()) as { error: string; details: string };
+    assert.equal(json.error, "lease_lost");
+    assert.equal(calls, 1);
+  });
+
+  it("ingest_batch passes active runId to upsertItem", async () => {
+    const deps = mockDeps({
+      claimRun: async () => ({ claimed: true, runId: "batch-run-777" }),
+    });
+    const items = [{ kind: "releases" as const, externalId: "custom:1", payload: { test: true } }];
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "ingest_batch", items },
+      }),
+      deps,
+    );
+    assert.equal(res.status, 200);
+    assert.equal(deps.upserted[0]?.runId, "batch-run-777");
   });
 });

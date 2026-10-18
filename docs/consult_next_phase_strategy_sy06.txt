@@ -1,0 +1,71 @@
+# CHIẾN LƯỢC TOÀN DIỆN GIAI ĐOẠN TIẾP THEO: INGAGAME / GAMEPULSE
+# Architectural Review & Consultation with Notion AI (Sy06)
+Ngày: 2026-10-18
+Mục tiêu: Đánh giá toàn diện các hướng phát triển tiếp theo của hệ thống sau khi hoàn thành 5 PR nền tảng (#18, #19, #20, #21, #22).
+
+---
+
+## I. HIỆN TRẠNG KIẾN TRÚC ĐÃ ĐẠT ĐƯỢC (Sau PR #22 - commit `ea0a3a8`)
+
+1. **Giao tiếp Dữ liệu & Phân loại Ngữ nghĩa (Delivery & Semantics)**:
+   - Cache segmentation: `['content-feed', mode, kind]` cô lập hoàn toàn giữa `live`, `mock`, `hybrid`. Chế độ `live` fail-closed 100%.
+   - Hợp đồng `GameSummary`: Rút gọn nhẹ (`id`, `title`, `coverUrl`, `steamAppId`, `platformAvailability`) cho Deals và News, giải phóng việc nạp full Game entity.
+   - Phân loại `OfferType`: `free_to_keep`, `free_weekend`, `trial`, `permanently_free`, `discount`.
+   - Filter "Hide Owned Games" tích hợp xuyên suốt Discover, Releases, Deals, Free Offers.
+
+2. **Khóa Độc quyền & Giám sát Vận hành (Lease & Audit Hardening)**:
+   - Bảng `ingestion_runs` ghi nhận chi tiết telemetry (status, items synced/dropped/total, started_at, finished_at, error_message).
+   - Bảng `ingestion_leases` cấp lease TTL (`30s <= lease_seconds <= 3600s`) với row-level lock.
+   - Bảng `ingestion_config` hỗ trợ kill-switch (`is_enabled`) và rate-limiting (`cooldown_seconds`, `next_allowed_at`).
+   - RPC `claim_ingestion_run` trả về lý do cụ thể (`ok`, `lease_held`, `action_disabled`, `cooldown_active`) và tự động thu hồi (lazy reclaim) các stale running runs khi lease hết hạn.
+   - RPC `finalize_ingestion_run` bảo đảm tính terminal-safe và owner-safe (`WHERE active_run_id = p_run_id`).
+   - View `v_ingestion_health` hiển thị tình trạng tổng quan tức thời cho từng action.
+
+---
+
+## II. 5 NHÓM ĐỀ XUẤT PHÁT TRIỂN TIẾP THEO (Cần Sy06 Phản biện & Xếp hạng Ưu tiên)
+
+Nhóm kỹ thuật đề xuất 5 định hướng phát triển lớn cho giai đoạn tới. Kính nhờ Sy06 phân tích rủi ro, bẫy kỹ thuật và thứ tự ưu tiên (P0 / P1 / P2):
+
+### Nhóm 1: Triển khai Canary Scheduler (`pg_cron` + `pg_net` với Vault)
+- **Đề xuất**:
+  - Tạo migration kích hoạt `pg_cron` gọi hàm wrapper `dispatch_ingestion_action(p_action)`.
+  - Sử dụng Supabase Vault (`vault.decrypted_secrets`) để lưu trữ token gọi Edge Function, không hardcode `service_role` key trong code/migration.
+  - Áp dụng chiến lược **Canary Rollout**: Chỉ kích hoạt tự động duy nhất một action ban đầu là `sync_steam_deals` (chạy mỗi 2 giờ) trong 48h để đo lường tỷ lệ lỗi, latency và kết quả pg_net trước khi mở tiếp `sync_steam_releases` và `sync_steam_news`.
+  - Liên kết tương quan: Lưu `pg_net` `request_id` vào metadata của run hoặc bảng trung gian để tra cứu log khi có sự cố.
+
+### Nhóm 2: Engine Giám sát Độ tươi mới Dữ liệu (Freshness Monitoring & Watchdog Alerting)
+- **Đề xuất**:
+  - Tạo View `v_data_freshness`: Đo lường khoảng cách giữa thời điểm hiện tại và mốc `source_fresh_until` của bản ghi mới nhất trong `content_items` theo từng `kind`.
+  - Xây dựng một **GitHub Actions Read-Only Watchdog Workflow**: Chạy định kỳ mỗi 6 giờ, gọi query `v_ingestion_health` và `v_data_freshness` từ Supabase REST API (dùng anon/service read-only).
+  - Nếu phát hiện độ tươi mới bị vi phạm (> 24h không có dữ liệu mới) hoặc có > 3 runs failed liên tiếp, workflow sẽ tạo GitHub Issue hoặc gửi notification (Discord/Telegram webhook) để đội ngũ can thiệp.
+  - Giữ vững nguyên tắc của Sy06: Watchdog chỉ đọc và cảnh báo, tuyệt đối không chạy active-active để trigger sync.
+
+### Nhóm 3: Mở rộng Nhà cung cấp Đa nguồn (Multi-Provider: Epic Games Store & GOG)
+- **Đề xuất**:
+  - Trang `/free` hiện tại phụ thuộc hoàn toàn vào Steam Specials. Tuy nhiên, các ưu đãi game tặng vĩnh viễn (`free_to_keep`) từ Steam rất hiếm (chỉ xuất hiện trong các đợt promotional giveaway ngắn ngày), trong khi **Epic Games Store** có lịch tặng game miễn phí hàng tuần cố định (Weekly Free Games) và **GOG** thường xuyên có giveaway game bản quyền không DRM.
+  - Mở rộng kiến trúc Ingestion hỗ trợ provider thứ hai: `sync_epic_free_games` (gọi endpoint công khai `https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions`).
+  - Chuẩn hóa ID: `epic:promotion:<id>`, phân loại chính xác `free_to_keep` với `claim_ends_at`.
+  - Liệu việc tích hợp Epic Free Games có làm phức tạp hóa hợp đồng `GameSummary` (vốn đang tối ưu cho Steam với `steamAppId`) không? Cần thiết kế abstraction như thế nào?
+
+### Nhóm 4: Làm giàu Dữ liệu Catalogue & Khả năng Tìm kiếm/Lọc nâng cao (Enrichment & Discovery)
+- **Đề xuất**:
+  - Hiện tại Deals và News chỉ mang thông tin cơ bản từ Steam Store API (title, price, banner).
+  - Bổ sung cơ chế liên kết mềm (soft-linking) hoặc enrichment: Trích xuất thể loại (genres/tags) và đánh giá của cộng đồng (review score: "Overwhelmingly Positive", % positive) từ Steam Store details.
+  - Trên giao diện `/deals` và `/free`: Bổ sung bộ lọc theo mức giảm giá (>50%, >75%), sắp xếp theo độ khẩn cấp (hết hạn sớm nhất `expires_at ASC`), và tìm kiếm nhanh theo tiêu đề game.
+
+### Nhóm 5: Quy trình Kiểm định Migration & Fault-Injection Testing
+- **Đề xuất**:
+  - Toàn bộ 5 file migration hiện nằm trong thư mục `supabase/migrations/`.
+  - Cần một bộ test tự động kiểm thử toàn bộ vòng đời migration: Chạy `supabase test db` (pgTAP) hoặc viết script kiểm tra tính toàn vẹn của các trigger, RLS policies và RPC permissions.
+  - Viết test mô phỏng sự cố (fault-injection): Giả lập worker bị kill đột ngột, kiểm tra xem RPC `claim_ingestion_run` tiếp theo có tự động reclaim abandoned run sạch sẽ và view `v_ingestion_health` có hiển thị đúng không.
+
+---
+
+## III. CÂU HỎI THAM VẤN DÀNH CHO SY06
+
+Kính nhờ Sy06:
+1. **Xếp hạng & Lộ trình**: Trong 5 nhóm trên, thứ tự ưu tiên chuẩn mực để đưa vào triển khai tiếp theo nên là gì? (Đặc biệt giữa Nhóm 1 - Canary Scheduler, Nhóm 2 - Freshness Alerting, và Nhóm 3 - Multi-Provider Free Games).
+2. **Kiến trúc Multi-Provider cho `GameSummary`**: Nếu bổ sung Epic Games Free Games, contract `GameSummary` (`id`, `title`, `coverUrl`, `steamAppId`, `platformAvailability`) nên thích ứng ra sao để không phá vỡ Steam Ownership Badge hiện có?
+3. **Chiến lược Canary an toàn**: Khi đưa `sync_steam_deals` vào chạy định kỳ qua `pg_cron`, những rủi ro nào cần chặn đứng đầu tiên (ví dụ: HTTP timeout, connection pooling, hay lỗi log storage của pg_net)?
+4. **Đề xuất bổ sung**: Sy06 có thấy lỗ hổng hoặc tính năng cốt lõi nào còn thiếu mà nhóm chưa liệt kê trong 5 nhóm trên không?

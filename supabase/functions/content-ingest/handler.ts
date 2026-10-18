@@ -51,6 +51,7 @@ export type IngestDeps = {
     stats: { synced: number; dropped: number; total: number; error?: string },
   ) => Promise<boolean>;
   upsertItem: (
+    runId: string,
     kind: "releases" | "deals" | "news",
     externalId: string,
     publishedAt: string,
@@ -176,10 +177,10 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
 
   async function withIngestLease(
     actionName: string,
-    executeFn: () => Promise<Response>,
+    executeFn: (runId: string) => Promise<Response>,
   ): Promise<Response> {
     const trigger = payload.trigger ?? "manual";
-    let runId: string | undefined;
+    let runId: string;
 
     if (deps.claimRun) {
       const claim = await deps.claimRun(actionName, trigger);
@@ -193,12 +194,14 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
         }
         return jsonResponse({ error: "lease_held", action: actionName, reason }, 409);
       }
-      runId = claim.runId;
+      runId = claim.runId ?? "00000000-0000-0000-0000-000000000000";
+    } else {
+      runId = "00000000-0000-0000-0000-000000000000";
     }
 
     try {
-      const res = await executeFn();
-      if (deps.finalizeRun && runId) {
+      const res = await executeFn(runId);
+      if (deps.finalizeRun && deps.claimRun) {
         if (res.ok) {
           try {
             const clone = res.clone();
@@ -226,7 +229,7 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
       }
       return res;
     } catch (err) {
-      if (deps.finalizeRun && runId) {
+      if (deps.finalizeRun && deps.claimRun) {
         await deps.finalizeRun(runId, "failed", {
           synced: 0,
           dropped: 0,
@@ -239,7 +242,7 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
   }
 
   if (action === "sync_steam_releases") {
-    return withIngestLease(action, async () => {
+    return withIngestLease(action, async (activeRunId) => {
       const mapper = deps.mapSteamApp;
       if (!mapper) {
         return jsonResponse({ error: "missing_mapper" }, 500);
@@ -270,13 +273,15 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
         // External identity with namespace per Notion Sy06 review: "steam:app:<id>"
         const externalId = `steam:app:${app.id}`;
         try {
-          await deps.upsertItem("releases", externalId, now.toISOString(), entry);
+          await deps.upsertItem(activeRunId, "releases", externalId, now.toISOString(), entry);
           synced++;
         } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (errMsg.includes("lease_")) {
+            return jsonResponse({ error: "lease_lost", action, details: errMsg }, 409);
+          }
           dropped++;
-          errors.push(
-            `upsert_failed:${app.id}:${err instanceof Error ? err.message : String(err)}`,
-          );
+          errors.push(`upsert_failed:${app.id}:${errMsg}`);
         }
       }
 
@@ -295,7 +300,7 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
   }
 
   if (action === "sync_steam_deals") {
-    return withIngestLease(action, async () => {
+    return withIngestLease(action, async (activeRunId) => {
       const mapper = deps.mapSteamDeal;
       if (!mapper) {
         return jsonResponse({ error: "missing_deal_mapper" }, 500);
@@ -327,6 +332,7 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
         }
         try {
           await deps.upsertItem(
+            activeRunId,
             "deals",
             mapped.externalId,
             now.toISOString(),
@@ -341,10 +347,12 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
           );
           synced++;
         } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (errMsg.includes("lease_")) {
+            return jsonResponse({ error: "lease_lost", action, details: errMsg }, 409);
+          }
           dropped++;
-          errors.push(
-            `upsert_failed:${mapped.externalId}:${err instanceof Error ? err.message : String(err)}`,
-          );
+          errors.push(`upsert_failed:${mapped.externalId}:${errMsg}`);
         }
       }
 
@@ -363,7 +371,7 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
   }
 
   if (action === "sync_steam_news") {
-    return withIngestLease(action, async () => {
+    return withIngestLease(action, async (activeRunId) => {
       const mapper = deps.mapSteamNews;
       if (!mapper) {
         return jsonResponse({ error: "missing_news_mapper" }, 500);
@@ -397,13 +405,21 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
           continue;
         }
         try {
-          await deps.upsertItem("news", mapped.externalId, now.toISOString(), mapped.article);
+          await deps.upsertItem(
+            activeRunId,
+            "news",
+            mapped.externalId,
+            now.toISOString(),
+            mapped.article,
+          );
           synced++;
         } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (errMsg.includes("lease_")) {
+            return jsonResponse({ error: "lease_lost", action, details: errMsg }, 409);
+          }
           dropped++;
-          errors.push(
-            `upsert_failed:${mapped.externalId}:${err instanceof Error ? err.message : String(err)}`,
-          );
+          errors.push(`upsert_failed:${mapped.externalId}:${errMsg}`);
         }
       }
 
@@ -423,42 +439,54 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
   }
 
   if (action === "ingest_batch") {
-    const rawItems = Array.isArray(payload.items) ? payload.items : [];
-    let synced = 0;
-    let dropped = 0;
+    return withIngestLease(action, async (activeRunId) => {
+      const rawItems = Array.isArray(payload.items) ? payload.items : [];
+      let synced = 0;
+      let dropped = 0;
 
-    for (const raw of rawItems) {
-      if (!raw || typeof raw !== "object") {
-        dropped++;
-        continue;
+      for (const raw of rawItems) {
+        if (!raw || typeof raw !== "object") {
+          dropped++;
+          continue;
+        }
+        const item = raw as {
+          kind?: "releases" | "deals" | "news";
+          externalId?: string;
+          payload?: unknown;
+        };
+        if (!item.kind || !item.externalId || !item.payload) {
+          dropped++;
+          continue;
+        }
+        try {
+          await deps.upsertItem(
+            activeRunId,
+            item.kind,
+            item.externalId,
+            now.toISOString(),
+            item.payload,
+          );
+          synced++;
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (errMsg.includes("lease_")) {
+            return jsonResponse({ error: "lease_lost", action, details: errMsg }, 409);
+          }
+          dropped++;
+        }
       }
-      const item = raw as {
-        kind?: "releases" | "deals" | "news";
-        externalId?: string;
-        payload?: unknown;
-      };
-      if (!item.kind || !item.externalId || !item.payload) {
-        dropped++;
-        continue;
-      }
-      try {
-        await deps.upsertItem(item.kind, item.externalId, now.toISOString(), item.payload);
-        synced++;
-      } catch {
-        dropped++;
-      }
-    }
 
-    return jsonResponse(
-      {
-        ok: true,
-        action: "ingest_batch",
-        synced,
-        dropped,
-        total: rawItems.length,
-      },
-      200,
-    );
+      return jsonResponse(
+        {
+          ok: true,
+          action: "ingest_batch",
+          synced,
+          dropped,
+          total: rawItems.length,
+        },
+        200,
+      );
+    });
   }
 
   return jsonResponse({ error: "unknown_action", action }, 400);
