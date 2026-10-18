@@ -1,0 +1,60 @@
+name: Ingestion Watchdog
+
+on:
+  schedule:
+    # Run every 30 minutes
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  observe:
+    name: Telemetry & Freshness Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Environment Credentials
+        id: check_creds
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
+            echo "has_creds=false" >> $GITHUB_OUTPUT
+            echo "::notice::Supabase credentials not configured. Skipping live watchdog query."
+          else
+            echo "has_creds=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Audit Ingestion Health & Freshness
+        if: steps.check_creds.outputs.has_creds == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+
+          echo "### Ingestion Telemetry & Health Audit" >> $GITHUB_STEP_SUMMARY
+          echo "Audit timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_STEP_SUMMARY
+
+          HEALTH_RES=$(curl -sSL -f \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}" \
+            "${SUPABASE_URL}/rest/v1/v_ingestion_health?select=*" || echo "[]")
+
+          FRESHNESS_RES=$(curl -sSL -f \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}" \
+            "${SUPABASE_URL}/rest/v1/v_data_freshness?select=*" || echo "[]")
+
+          echo "#### Ingestion Health Status" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo "${HEALTH_RES}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          echo "#### Content Freshness Status" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo "${FRESHNESS_RES}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
