@@ -1,4 +1,4 @@
-import type { Deal } from "../../domain/types.ts";
+import type { Deal, GameSummary } from "../../domain/types.ts";
 import { isDealItem } from "./feed.ts";
 
 export interface RawSteamSpecial {
@@ -15,21 +15,31 @@ export interface RawSteamSpecial {
   linux_available?: boolean;
 }
 
+export interface MappedSteamDeal {
+  deal: Deal;
+  externalId: string;
+  expiresAt: string | null;
+  sourceFreshUntil: string;
+  offerState: "active" | "expired" | "withdrawn";
+}
+
 export function buildSteamDealExternalId(appId: number, market = "us", currency = "USD"): string {
   return `steam:app:${appId}:market:${market.toLowerCase()}:currency:${currency.toUpperCase()}`;
 }
 
 /**
- * Maps a Steam special offer to an Inga Deal record with denormalized minimal game snapshot.
+ * Maps a Steam special offer to an Inga Deal record with denormalized minimal game summary.
  * Adheres strictly to Notion Sy06 review:
  * - Proper minor units to decimal currency conversion
  * - Non-negative, finite price verification
  * - discount_expiration mapped to ISO endsAt without fabricating dates
+ * - Typed projections for database query-time filtering and freshness TTL
  */
 export function mapSteamSpecialToDeal(
   special: RawSteamSpecial,
   market = "us",
-): { deal: Deal; externalId: string } | null {
+  now: Date = new Date(),
+): MappedSteamDeal | null {
   if (
     !special ||
     typeof special.id !== "number" ||
@@ -73,6 +83,23 @@ export function mapSteamSpecialToDeal(
   const gameId = `steam-${special.id}`;
   const dealId = `deal-steam-${special.id}`;
   const externalId = buildSteamDealExternalId(special.id, market, currency);
+  const coverUrl =
+    special.header_image ||
+    `https://cdn.akamai.steamstatic.com/steam/apps/${special.id}/header.jpg`;
+
+  const gameSummary: GameSummary = {
+    id: gameId,
+    title: special.name.trim(),
+    coverUrl,
+    steamAppId: special.id,
+    platformAvailability: {
+      windows: special.windows_available ?? null,
+      mac: special.mac_available ?? null,
+      linux: special.linux_available ?? null,
+    },
+    source: "steam",
+    observedAt: now.toISOString(),
+  };
 
   const deal: Deal = {
     id: dealId,
@@ -83,6 +110,7 @@ export function mapSteamSpecialToDeal(
     discountPercent: special.discount_percent,
     currency,
     url: `https://store.steampowered.com/app/${special.id}`,
+    gameSummary,
     ...(endsAt ? { endsAt } : {}),
   };
 
@@ -90,5 +118,15 @@ export function mapSteamSpecialToDeal(
     return null;
   }
 
-  return { deal, externalId };
+  // Freshness TTL fallback: 24h when endsAt is unknown
+  const fallbackTtlMs = 24 * 3600 * 1000;
+  const sourceFreshUntil = endsAt ? endsAt : new Date(now.getTime() + fallbackTtlMs).toISOString();
+
+  return {
+    deal,
+    externalId,
+    expiresAt: endsAt ?? null,
+    sourceFreshUntil,
+    offerState: "active",
+  };
 }

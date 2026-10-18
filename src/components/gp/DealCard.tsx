@@ -23,13 +23,15 @@ export function DealCard({
   className?: string;
 }) {
   const game = deal.game;
-  const title = useGameTitle(game ?? { title: deal.store });
+  const summary = deal.gameSummary;
+  const target = game ?? summary;
+  const title = useGameTitle(game ?? { title: summary?.title ?? deal.store });
   const now = useNow();
   const { t } = useI18n();
   const expired = isDealExpired(deal.endsAt, now);
   const discountLabel = expired ? t("deals.alert.title") : `-${deal.discountPercent}%`;
 
-  if (!game) {
+  if (!target) {
     return (
       <div
         className={cn(
@@ -56,64 +58,48 @@ export function DealCard({
     );
   }
 
-  if (featured) {
-    return (
-      <Link
-        to="/game/$slug"
-        params={{ slug: game.slug }}
+  const coverUrl = game?.coverUrl ?? summary?.coverUrl ?? "";
+
+  const contentFeatured = (
+    <>
+      <img
+        src={coverUrl}
+        alt=""
+        loading="lazy"
+        width={600}
+        height={900}
+        className="h-36 w-full object-cover sm:h-32 transition-transform duration-300 group-hover:scale-[1.04]"
+      />
+      <div className="gp-cover-scrim absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
+      <span
         className={cn(
-          "group relative block overflow-hidden rounded-xl border border-border",
-          expired && "opacity-80",
-          className,
+          "absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[11px] font-bold",
+          expired ? "bg-destructive text-destructive-foreground" : "bg-success text-background",
         )}
       >
-        <img
-          src={game.coverUrl}
-          alt=""
-          loading="lazy"
-          width={600}
-          height={900}
-          className="h-36 w-full object-cover sm:h-32 transition-transform duration-300 group-hover:scale-[1.04]"
-        />
-        <div className="gp-cover-scrim absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
-        <span
-          className={cn(
-            "absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[11px] font-bold",
-            expired ? "bg-destructive text-destructive-foreground" : "bg-success text-background",
-          )}
-        >
-          {discountLabel}
-        </span>
-        <div className="absolute inset-x-3 bottom-2">
-          <div className="flex items-center justify-between gap-1">
-            <p className="truncate text-sm font-semibold text-foreground">{title}</p>
-            <SteamOwnershipBadge game={game} variant="compact" />
-          </div>
-          <p className="text-xs">
-            <span className="font-semibold text-foreground">
-              {money(deal.priceCurrent, deal.currency, locale)}
-            </span>{" "}
-            <span className="text-muted-foreground line-through">
-              {money(deal.priceBase, deal.currency, locale)}
-            </span>
-          </p>
+        {discountLabel}
+      </span>
+      <div className="absolute inset-x-3 bottom-2">
+        <div className="flex items-center justify-between gap-1">
+          <p className="truncate text-sm font-semibold text-foreground">{title}</p>
+          <SteamOwnershipBadge game={target} variant="compact" />
         </div>
-      </Link>
-    );
-  }
+        <p className="text-xs">
+          <span className="font-semibold text-foreground">
+            {money(deal.priceCurrent, deal.currency, locale)}
+          </span>{" "}
+          <span className="text-muted-foreground line-through">
+            {money(deal.priceBase, deal.currency, locale)}
+          </span>
+        </p>
+      </div>
+    </>
+  );
 
-  return (
-    <Link
-      to="/game/$slug"
-      params={{ slug: game.slug }}
-      className={cn(
-        "group flex min-h-14 items-center gap-3 rounded-lg border border-transparent p-2 transition-colors hover:border-border hover:bg-surface-2/70",
-        expired && "opacity-80",
-        className,
-      )}
-    >
+  const contentList = (
+    <>
       <img
-        src={game.coverUrl}
+        src={coverUrl}
         alt=""
         loading="lazy"
         width={600}
@@ -125,7 +111,7 @@ export function DealCard({
           <p className="truncate text-sm font-medium text-foreground group-hover:text-accent">
             {title}
           </p>
-          <SteamOwnershipBadge game={game} variant="compact" />
+          <SteamOwnershipBadge game={target} variant="compact" />
         </div>
         <p className="truncate text-xs text-muted-foreground">{deal.store}</p>
       </div>
@@ -140,6 +126,48 @@ export function DealCard({
       <span className="w-[68px] shrink-0 text-right text-sm font-semibold text-foreground">
         {money(deal.priceCurrent, deal.currency, locale)}
       </span>
-    </Link>
+    </>
+  );
+
+  const featuredClasses = cn(
+    "group relative block overflow-hidden rounded-xl border border-border",
+    expired && "opacity-80",
+    className,
+  );
+
+  const listClasses = cn(
+    "group flex min-h-14 items-center gap-3 rounded-lg border border-transparent p-2 transition-colors hover:border-border hover:bg-surface-2/70",
+    expired && "opacity-80",
+    className,
+  );
+
+  if (game?.slug) {
+    return featured ? (
+      <Link to="/game/$slug" params={{ slug: game.slug }} className={featuredClasses}>
+        {contentFeatured}
+      </Link>
+    ) : (
+      <Link to="/game/$slug" params={{ slug: game.slug }} className={listClasses}>
+        {contentList}
+      </Link>
+    );
+  }
+
+  if (deal.url) {
+    return featured ? (
+      <a href={deal.url} target="_blank" rel="noopener noreferrer" className={featuredClasses}>
+        {contentFeatured}
+      </a>
+    ) : (
+      <a href={deal.url} target="_blank" rel="noopener noreferrer" className={listClasses}>
+        {contentList}
+      </a>
+    );
+  }
+
+  return featured ? (
+    <div className={featuredClasses}>{contentFeatured}</div>
+  ) : (
+    <div className={listClasses}>{contentList}</div>
   );
 }

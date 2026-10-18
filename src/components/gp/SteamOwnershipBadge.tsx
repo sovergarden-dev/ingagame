@@ -1,5 +1,5 @@
 import { Gamepad2 } from "lucide-react";
-import type { Game } from "@/domain/types";
+import type { Game, GameSummary } from "@/domain/types";
 import { useSteam } from "@/integrations/steam/SteamProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
@@ -9,7 +9,7 @@ export function SteamOwnershipBadge({
   variant = "full",
   className,
 }: {
-  game: Game;
+  game: Game | GameSummary;
   variant?: "full" | "compact";
   className?: string;
 }) {

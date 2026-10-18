@@ -111,9 +111,14 @@ describe("handleContentFeed", () => {
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("Cache-Control"), CACHE_CONTROL);
     assert.equal(response.headers.get("Content-Type"), "application/json");
-    const body = (await response.json()) as { items: unknown[]; fetchedAt: string };
-    assert.deepEqual(Object.keys(body).sort(), ["fetchedAt", "items"]);
+    const body = (await response.json()) as {
+      items: unknown[];
+      fetchedAt: string;
+      sourceMode: string;
+    };
+    assert.deepEqual(Object.keys(body).sort(), ["fetchedAt", "items", "sourceMode"]);
     assert.equal(body.fetchedAt, fetchedAt);
+    assert.equal(body.sourceMode, "live");
     assert.deepEqual(body.items, [{ event: { id: "r1" } }, { event: { id: "r2" } }]);
     assert.equal(JSON.stringify(body).includes("service_role"), false);
     assert.equal(JSON.stringify(body).includes("leak"), false);

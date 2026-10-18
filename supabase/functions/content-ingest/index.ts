@@ -23,12 +23,23 @@ Deno.serve((req) =>
     mapSteamApp: mapSteamAppToRadarEntry,
     mapSteamDeal: (special) => mapSteamSpecialToDeal(special as unknown as RawSteamSpecial),
     mapSteamNews: (item) => mapSteamNewsToArticle(item as unknown as RawSteamNewsItem),
-    upsertItem: async (kind, externalId, publishedAt, payload) => {
+    upsertItem: async (
+      kind,
+      externalId,
+      publishedAt,
+      payload,
+      expiresAt,
+      offerState,
+      sourceFreshUntil,
+    ) => {
       const { data, error } = await supabase.rpc("upsert_content_item", {
         p_kind: kind,
         p_external_id: externalId,
         p_published_at: publishedAt,
         p_payload: payload,
+        p_expires_at: expiresAt ?? null,
+        p_offer_state: offerState ?? "active",
+        p_source_fresh_until: sourceFreshUntil ?? null,
       });
       if (error) throw error;
       return String(data);

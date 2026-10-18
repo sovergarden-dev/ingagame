@@ -46,11 +46,23 @@ export type IngestDeps = {
     externalId: string,
     publishedAt: string,
     payload: unknown,
+    expiresAt?: string | null,
+    offerState?: string,
+    sourceFreshUntil?: string | null,
   ) => Promise<string>;
   fetchSteamFeatured?: () => Promise<RawSteamApp[]>;
   mapSteamApp?: (app: RawSteamApp) => MappedRadarEntry | null;
   fetchSteamSpecials?: () => Promise<unknown[]>;
-  mapSteamDeal?: (special: unknown) => { deal: unknown; externalId: string } | null;
+  mapSteamDeal?: (
+    special: unknown,
+    now?: Date,
+  ) => {
+    deal: unknown;
+    externalId: string;
+    expiresAt?: string | null;
+    offerState?: string;
+    sourceFreshUntil?: string | null;
+  } | null;
   fetchSteamNews?: (appId: number) => Promise<unknown[]>;
   mapSteamNews?: (item: unknown) => { article: unknown; externalId: string } | null;
 };
@@ -222,13 +234,21 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
     const errors: string[] = [];
 
     for (const item of specials) {
-      const mapped = mapper(item);
+      const mapped = mapper(item, now);
       if (!mapped) {
         dropped++;
         continue;
       }
       try {
-        await deps.upsertItem("deals", mapped.externalId, now.toISOString(), mapped.deal);
+        await deps.upsertItem(
+          "deals",
+          mapped.externalId,
+          now.toISOString(),
+          mapped.deal,
+          mapped.expiresAt ?? null,
+          mapped.offerState ?? "active",
+          mapped.sourceFreshUntil ?? null,
+        );
         synced++;
       } catch (err) {
         dropped++;

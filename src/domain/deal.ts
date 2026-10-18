@@ -1,4 +1,4 @@
-import type { Game, PlatformId } from "./types.ts";
+import type { Game, GameSummary, PlatformAvailability, PlatformId } from "./types.ts";
 import { shouldHideOwnedGame, type OwnershipStatus } from "./ownership.ts";
 
 /** Milliseconds of `endsAt`, or null when the deal has no usable expiry. */
@@ -27,13 +27,29 @@ export function liveDeals<T extends { endsAt?: string }>(deals: T[], now: number
   return deals.filter((deal) => !isDealExpired(deal.endsAt, now));
 }
 
-/** Keeps a deal when its game is on one of the selected platforms. A deal with no game is left out. */
-export function dealsForPlatforms<T extends { game?: { platforms: PlatformId[] } }>(
-  deals: T[],
-  platformIds: PlatformId[],
-): T[] {
+/** Keeps a deal when its game is on one of the selected platforms. A deal with no game or summary is left out. */
+export function dealsForPlatforms<
+  T extends {
+    game?: { platforms: PlatformId[] };
+    gameSummary?: { platformAvailability?: PlatformAvailability };
+  },
+>(deals: T[], platformIds: PlatformId[]): T[] {
   const selected = new Set(platformIds);
-  return deals.filter((deal) => deal.game?.platforms.some((platform) => selected.has(platform)));
+  return deals.filter((deal) => {
+    if (deal.game?.platforms) {
+      return deal.game.platforms.some((platform) => selected.has(platform));
+    }
+    const avail = deal.gameSummary?.platformAvailability;
+    if (avail) {
+      if (
+        (selected.has("pc") || selected.has("steam")) &&
+        (avail.windows === true || avail.linux === true || avail.mac === true)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  });
 }
 
 export const ENDING_SOON_MS = 72 * 3_600_000;
@@ -75,14 +91,17 @@ export function dealsForGame<T extends { gameId: string; game?: { id?: string; s
 
 /**
  * Filters out deals whose associated game is owned on Steam.
- * Fail-open contract: if deal.game is missing or ownership cannot be determined,
+ * Fail-open contract: if deal.game and deal.gameSummary are missing or ownership cannot be determined,
  * the deal is preserved.
  */
-export function filterOwnedDeals<T extends { game?: Game }>(
+export function filterOwnedDeals<T extends { game?: Game; gameSummary?: GameSummary }>(
   deals: T[],
-  owns: (game: Game) => OwnershipStatus,
+  owns: (game: Game | GameSummary) => OwnershipStatus,
 ): T[] {
-  return deals.filter((deal) => (deal.game ? !shouldHideOwnedGame(deal.game, true, owns) : true));
+  return deals.filter((deal) => {
+    const target = deal.game ?? deal.gameSummary;
+    return target ? !shouldHideOwnedGame(target, true, owns) : true;
+  });
 }
 
 /**
@@ -93,7 +112,7 @@ export function filterOwnedDeals<T extends { game?: Game }>(
 export function filterOwnedGiveaways<T extends { gameId: string }>(
   giveaways: T[],
   getGameFn: (id: string) => Game | undefined,
-  owns: (game: Game) => OwnershipStatus,
+  owns: (game: Game | GameSummary) => OwnershipStatus,
 ): T[] {
   return giveaways.filter((g) => {
     const game = getGameFn(g.gameId);

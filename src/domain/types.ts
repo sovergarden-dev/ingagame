@@ -73,6 +73,22 @@ export interface RadarEntry {
   event: ReleaseEvent;
 }
 
+export interface PlatformAvailability {
+  windows?: boolean | null;
+  mac?: boolean | null;
+  linux?: boolean | null;
+}
+
+export interface GameSummary {
+  id: string;
+  title: string;
+  coverUrl?: string;
+  steamAppId?: number;
+  platformAvailability?: PlatformAvailability;
+  source?: string;
+  observedAt?: string;
+}
+
 export interface Deal {
   id: string;
   gameId: string;
@@ -83,6 +99,8 @@ export interface Deal {
   currency: string;
   endsAt?: string;
   url?: string;
+  /** Sourced minimal game summary (title, cover, steamAppId, platform availability). */
+  gameSummary?: GameSummary;
   /** Denormalized catalogue snapshot from content-feed when present. */
   game?: Game;
 }
@@ -104,6 +122,8 @@ export interface Article {
   imageUrl?: string;
   gameId?: string;
   url?: string;
+  /** Sourced minimal game summary. */
+  gameSummary?: GameSummary;
   /** Denormalized catalogue snapshot from content-feed when present. */
   game?: Game;
 }
