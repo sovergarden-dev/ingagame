@@ -1,4 +1,4 @@
-import type { Game } from "./types";
+import type { Game, GameSummary } from "./types";
 
 /**
  * Steam AppID must be a positive unsigned 32-bit integer.
@@ -9,11 +9,11 @@ export function isValidSteamAppId(value: unknown): value is number {
 }
 
 /**
- * Resolves the Steam AppID from either a Game object or canonical catalogue ID.
+ * Resolves the Steam AppID from either a Game/GameSummary object or canonical catalogue ID.
  * Never parses strings directly as numeric AppIDs (avoids ambiguous ID collisions).
  */
 export function resolveGameSteamAppId(
-  gameOrId: Game | string,
+  gameOrId: Game | GameSummary | string,
   catalogueResolver?: (id: string) => Game | undefined,
 ): number | undefined {
   if (typeof gameOrId === "object" && gameOrId !== null) {
@@ -90,9 +90,9 @@ export function getOwnershipStatus(params: OwnershipStateParams): OwnershipStatu
  * Games with status "unknown" or "not_owned" are never hidden.
  */
 export function shouldHideOwnedGame(
-  game: Game,
+  game: Game | GameSummary,
   hideOwned: boolean,
-  getOwnership: (g: Game) => OwnershipStatus,
+  getOwnership: (g: Game | GameSummary) => OwnershipStatus,
 ): boolean {
   if (!hideOwned) return false;
   return getOwnership(game) === "owned";

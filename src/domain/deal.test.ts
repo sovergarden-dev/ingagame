@@ -7,7 +7,7 @@ import {
   filterOwnedGiveaways,
   liveDeals,
 } from "./deal.ts";
-import type { Game } from "./types.ts";
+import type { Game, GameSummary } from "./types.ts";
 
 const now = Date.parse("2026-09-25T00:00:00Z");
 
@@ -80,7 +80,7 @@ describe("filterOwnedDeals", () => {
   const unownedGame = { id: "g2", slug: "unowned-game", steamAppId: 200 } as Game;
   const unmappedGame = { id: "g3", slug: "unmapped-game" } as Game;
 
-  const mockOwns = (game: Game) => {
+  const mockOwns = (game: Game | GameSummary) => {
     if (game.steamAppId === 100) return "owned" as const;
     if (game.steamAppId === 200) return "not_owned" as const;
     return "unknown" as const;
@@ -118,7 +118,7 @@ describe("filterOwnedGiveaways", () => {
     ["g-unknown", { id: "g-unknown", slug: "unknown" } as Game],
   ]);
 
-  const mockOwns = (game: Game) => {
+  const mockOwns = (game: Game | GameSummary) => {
     if (game.steamAppId === 100) return "owned" as const;
     if (game.steamAppId === 200) return "not_owned" as const;
     return "unknown" as const;

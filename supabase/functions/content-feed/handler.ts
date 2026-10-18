@@ -10,15 +10,19 @@ export type FeedRow = {
   published_at: string;
 };
 
-export type FeedQuery = {
+export type FeedQueryParams = {
   kind: ContentKind;
   since: string | null;
   limit: number;
 };
 
+export type FeedQuery = FeedQueryParams & {
+  nowIso: string;
+};
+
 export type FeedQueryFn = (query: FeedQuery) => Promise<FeedRow[]>;
 
-type ParseOk = { ok: true } & FeedQuery;
+type ParseOk = { ok: true } & FeedQueryParams;
 type ParseErr = { ok: false; status: number; error: string };
 export type ParseFeedResult = ParseOk | ParseErr;
 
@@ -106,19 +110,24 @@ export async function handleContentFeed(
     return jsonResponse({ error: parsed.error }, parsed.status);
   }
 
+  const now = (options.now ?? (() => new Date()))();
+  const nowIso = now.toISOString();
+
   try {
     const rows = await queryItems({
       kind: parsed.kind,
       since: parsed.since,
       limit: parsed.limit,
+      nowIso,
     });
     const items: unknown[] = [];
     for (const row of rows) {
       const item = toPublicItem(row.payload);
       if (item) items.push(item);
     }
-    const fetchedAt = (options.now ?? (() => new Date()))().toISOString();
-    return jsonResponse({ items, fetchedAt }, 200, { "Cache-Control": CACHE_CONTROL });
+    return jsonResponse({ items, fetchedAt: nowIso, sourceMode: "live" }, 200, {
+      "Cache-Control": CACHE_CONTROL,
+    });
   } catch {
     return jsonResponse({ error: "feed_unavailable" }, 500);
   }

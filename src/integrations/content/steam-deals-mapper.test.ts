@@ -29,7 +29,8 @@ describe("mapSteamSpecialToDeal", () => {
   };
 
   it("maps valid Steam special to Deal with clean pricing", () => {
-    const res = mapSteamSpecialToDeal(validSpecial, "us");
+    const fixedNow = new Date("2026-10-18T00:00:00.000Z");
+    const res = mapSteamSpecialToDeal(validSpecial, "us", fixedNow);
     assert.ok(res);
     assert.equal(res.externalId, "steam:app:1145350:market:us:currency:USD");
     assert.equal(res.deal.id, "deal-steam-1145350");
@@ -39,6 +40,16 @@ describe("mapSteamSpecialToDeal", () => {
     assert.equal(res.deal.discountPercent, 40);
     assert.equal(res.deal.currency, "USD");
     assert.ok(res.deal.endsAt);
+    assert.equal(res.expiresAt, res.deal.endsAt);
+    assert.equal(res.offerState, "active");
+    assert.equal(res.sourceFreshUntil, res.deal.endsAt);
+
+    // GameSummary verification per Notion Sy06
+    assert.ok(res.deal.gameSummary);
+    assert.equal(res.deal.gameSummary.id, "steam-1145350");
+    assert.equal(res.deal.gameSummary.title, "Hades II");
+    assert.equal(res.deal.gameSummary.steamAppId, 1145350);
+    assert.equal(res.deal.gameSummary.source, "steam");
 
     // Schema verification
     assert.ok(isDealItem(res.deal));
@@ -57,11 +68,15 @@ describe("mapSteamSpecialToDeal", () => {
     assert.ok(isDealItem(res.deal));
   });
 
-  it("handles absent discount_expiration without fabricating dates", () => {
+  it("handles absent discount_expiration with 24h fallback freshness without fabricating dates", () => {
+    const fixedNow = new Date("2026-10-18T00:00:00.000Z");
     const { discount_expiration: _, ...noExpiry } = validSpecial;
-    const res = mapSteamSpecialToDeal(noExpiry);
+    const res = mapSteamSpecialToDeal(noExpiry, "us", fixedNow);
     assert.ok(res);
     assert.equal(res.deal.endsAt, undefined);
+    assert.equal(res.expiresAt, null);
+    assert.equal(res.sourceFreshUntil, "2026-10-19T00:00:00.000Z"); // 24h fallback TTL
+    assert.equal(res.offerState, "active");
     assert.ok(isDealItem(res.deal));
   });
 

@@ -11,19 +11,50 @@ import { mapSteamNewsToArticle, type RawSteamNewsItem } from "./steam-news-mappe
 const SERVICE_KEY = "test-service-role-key-12345";
 
 function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
-  upserted: { kind: string; externalId: string; publishedAt: string; payload: unknown }[];
+  upserted: {
+    kind: string;
+    externalId: string;
+    publishedAt: string;
+    payload: unknown;
+    expiresAt?: string | null;
+    offerState?: string;
+    sourceFreshUntil?: string | null;
+  }[];
 } {
-  const upserted: { kind: string; externalId: string; publishedAt: string; payload: unknown }[] =
-    [];
+  const upserted: {
+    kind: string;
+    externalId: string;
+    publishedAt: string;
+    payload: unknown;
+    expiresAt?: string | null;
+    offerState?: string;
+    sourceFreshUntil?: string | null;
+  }[] = [];
   return {
     serviceRoleKey: SERVICE_KEY,
     now: () => new Date("2026-10-17T10:00:00.000Z"),
-    upsertItem: async (kind, externalId, publishedAt, payload) => {
-      upserted.push({ kind, externalId, publishedAt, payload });
+    upsertItem: async (
+      kind,
+      externalId,
+      publishedAt,
+      payload,
+      expiresAt,
+      offerState,
+      sourceFreshUntil,
+    ) => {
+      upserted.push({
+        kind,
+        externalId,
+        publishedAt,
+        payload,
+        ...(expiresAt !== undefined ? { expiresAt } : {}),
+        ...(offerState !== undefined ? { offerState } : {}),
+        ...(sourceFreshUntil !== undefined ? { sourceFreshUntil } : {}),
+      });
       return `id-${upserted.length}`;
     },
     mapSteamApp: mapSteamAppToRadarEntry,
-    mapSteamDeal: (item) => mapSteamSpecialToDeal(item as RawSteamSpecial),
+    mapSteamDeal: (item, now) => mapSteamSpecialToDeal(item as RawSteamSpecial, "us", now),
     mapSteamNews: (item) => mapSteamNewsToArticle(item as RawSteamNewsItem),
     upserted,
     ...overrides,

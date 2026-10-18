@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useAuth } from "@/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
-import type { Game } from "@/domain/types";
+import type { Game, GameSummary } from "@/domain/types";
 import { getGame } from "@/domain/mock-data";
 import {
   getOwnershipStatus,
@@ -44,9 +44,9 @@ export interface SteamValue {
   lastSyncedAt: string | null;
   cooldownSeconds: number;
   mock: boolean;
-  owns: (gameOrId: Game | string) => boolean;
+  owns: (gameOrId: Game | GameSummary | string) => boolean;
   ownsSteamApp: (appId: number) => boolean;
-  getOwnership: (gameOrId: Game | string) => OwnershipStatus;
+  getOwnership: (gameOrId: Game | GameSummary | string) => OwnershipStatus;
   connect: (handle?: string) => Promise<void>;
   resync: () => Promise<void>;
   disconnect: () => void;
@@ -408,7 +408,7 @@ export function SteamProvider({ children }: { children: ReactNode }) {
   );
 
   const getOwnership = useCallback(
-    (gameOrId: Game | string): OwnershipStatus => {
+    (gameOrId: Game | GameSummary | string): OwnershipStatus => {
       const gameId = typeof gameOrId === "object" ? gameOrId.id : gameOrId;
       const steamAppId = resolveGameSteamAppId(gameOrId, getGame);
       const ownedGameIds = snapshot?.ownedGames.map((g) => g.gameId) ?? [];
@@ -425,7 +425,7 @@ export function SteamProvider({ children }: { children: ReactNode }) {
   );
 
   const owns = useCallback(
-    (gameOrId: Game | string): boolean => {
+    (gameOrId: Game | GameSummary | string): boolean => {
       return getOwnership(gameOrId) === "owned";
     },
     [getOwnership],
