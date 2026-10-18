@@ -30,7 +30,8 @@ Deno.serve((req) =>
       const row = Array.isArray(data) ? data[0] : data;
       return {
         claimed: Boolean(row?.claimed),
-        runId: row?.run_id ? String(row.run_id) : undefined,
+        ...(row?.run_id ? { runId: String(row.run_id) } : {}),
+        ...(row?.reason ? { reason: String(row.reason) } : {}),
       };
     },
     finalizeRun: async (runId, status, stats) => {

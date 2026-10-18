@@ -41,7 +41,10 @@ export type MappedRadarEntry = {
 export type IngestDeps = {
   now?: () => Date;
   serviceRoleKey: string;
-  claimRun?: (action: string, trigger?: string) => Promise<{ claimed: boolean; runId?: string }>;
+  claimRun?: (
+    action: string,
+    trigger?: string,
+  ) => Promise<{ claimed: boolean; runId?: string; reason?: string }>;
   finalizeRun?: (
     runId: string,
     status: "completed" | "failed",
@@ -181,7 +184,14 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
     if (deps.claimRun) {
       const claim = await deps.claimRun(actionName, trigger);
       if (!claim.claimed) {
-        return jsonResponse({ error: "lease_held", action: actionName }, 409);
+        const reason = claim.reason ?? "lease_held";
+        if (reason === "action_disabled") {
+          return jsonResponse({ error: "action_disabled", action: actionName, reason }, 409);
+        }
+        if (reason === "cooldown_active") {
+          return jsonResponse({ error: "cooldown_active", action: actionName, reason }, 429);
+        }
+        return jsonResponse({ error: "lease_held", action: actionName, reason }, 409);
       }
       runId = claim.runId;
     }
