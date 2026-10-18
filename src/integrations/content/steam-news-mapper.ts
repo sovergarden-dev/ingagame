@@ -1,4 +1,4 @@
-import type { Article } from "../../domain/types.ts";
+import type { Article, GameSummary } from "../../domain/types.ts";
 import { isArticleItem } from "./feed.ts";
 
 export interface RawSteamNewsItem {
@@ -106,6 +106,15 @@ export function mapSteamNewsToArticle(
   const articleId = `news-steam-${item.appid}-${item.gid}`;
   const source = item.feedlabel?.trim() || "Steam Community";
 
+  const gameSummary: GameSummary = {
+    id: `steam-${item.appid}`,
+    title: item.feedlabel?.trim() || `Steam App ${item.appid}`,
+    steamAppId: item.appid,
+    coverUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${item.appid}/header.jpg`,
+    source: "steam",
+    observedAt: publishedDate.toISOString(),
+  };
+
   const article: Article = {
     id: articleId,
     title: item.title.trim(),
@@ -113,6 +122,7 @@ export function mapSteamNewsToArticle(
     publishedAt: publishedDate.toISOString(),
     url: item.url.trim(),
     gameId: `steam-${item.appid}`,
+    gameSummary,
   };
 
   if (!isArticleItem(article)) {
