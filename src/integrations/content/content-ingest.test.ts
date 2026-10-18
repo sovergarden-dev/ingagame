@@ -430,4 +430,46 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
     assert.equal(finalizedStatus, "failed");
     assert.ok(finalizedError?.includes("http_status_502"));
   });
+
+  it("rejects execution with 409 when action is disabled via kill-switch", async () => {
+    const deps = mockDeps({
+      claimRun: async () => ({ claimed: false, reason: "action_disabled" }),
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_deals" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 409);
+    const json = (await res.json()) as { error: string; action: string; reason: string };
+    assert.equal(json.error, "action_disabled");
+    assert.equal(json.action, "sync_steam_deals");
+    assert.equal(json.reason, "action_disabled");
+    assert.equal(deps.upserted.length, 0);
+  });
+
+  it("rejects execution with 429 when action is within cooldown", async () => {
+    const deps = mockDeps({
+      claimRun: async () => ({ claimed: false, reason: "cooldown_active" }),
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_deals" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 429);
+    const json = (await res.json()) as { error: string; action: string; reason: string };
+    assert.equal(json.error, "cooldown_active");
+    assert.equal(json.action, "sync_steam_deals");
+    assert.equal(json.reason, "cooldown_active");
+    assert.equal(deps.upserted.length, 0);
+  });
 });

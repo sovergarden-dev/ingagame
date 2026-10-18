@@ -1,0 +1,78 @@
+# ARCHITECTURAL CONSULTATION & CRITIQUE: Ingestion Scheduling, Kill-Switch & Production Orchestration
+
+Hệ thống: GamePulse / Inga (`G:/AI/cursor/ingagame`)
+Dự án: Steam Releases, Deals (Specials), and News Ingestion & Real-Time Content Feed
+Công nghệ: Supabase (PostgreSQL 15), Deno Edge Functions, React 19 + TanStack Query, TypeScript strict.
+
+---
+
+## 1. Bối cảnh & Hiện trạng hệ thống (Baseline sau PR #21)
+
+Toàn bộ 4 Pull Request đã hoàn tất và merge vào `main` (`26d9d28`):
+1. **PR #18 (Cache Isolation & Fail-Closed Live Feed)**:
+   - Query key phân vùng rõ: `['content-feed', mode, kind]` (`mode = 'live' | 'mock' | 'hybrid'`).
+   - Chế độ `live` fail-closed triệt để: server lỗi kích hoạt `FeedUnavailableError` / `FeedGate`, không fallback silent về mock fixtures.
+2. **PR #19 (Semantic Offer Classification & Real `/free` Provider)**:
+   - Schema phân loại ưu đãi: `offer_type` (`free_to_keep`, `free_weekend`, `trial`, `permanently_free`, `discount`), `claim_ends_at`, `access_ends_at`, `classification_status`.
+   - Mapped chính xác từ Steam Specials: 100% discount có hạn kết thúc $\rightarrow$ `free_to_keep`.
+3. **PR #20 (News GameSummary & Steam Ownership Resolver)**:
+   - `toGameSummary()` gắn gọn nhẹ `steamAppId` và banner trên `/news`.
+   - Route `/news` tích hợp `SteamOwnershipBadge` kiểm tra quyền sở hữu Steam mượt mà.
+4. **PR #21 (Ingestion Lease & Concurrency Orchestration)**:
+   - Migration `20261018040000_ingestion_lease_and_audit.sql`:
+     - Bảng `ingestion_runs` ghi nhận telemetry: `id`, `action`, `trigger` ('manual' | 'cron' | 'webhook'), `status` ('running' | 'completed' | 'failed'), `items_synced`, `items_dropped`, `items_total`, `error_message`, `duration_ms`.
+     - Bảng `ingestion_leases`: `action` (PK), `active_run_id`, `lease_expires_at`, `updated_at`.
+     - Atomic RPC `claim_ingestion_run(p_action, p_trigger, p_lease_seconds)`: Row-level lock (`SELECT ... FOR UPDATE`), kiểm tra lease còn hiệu lực; nếu expired hoặc trống $\rightarrow$ cấp lease mới và trả về `{ claimed: true, run_id }`. Nếu đang có worker khác nắm lease $\rightarrow$ trả về `{ claimed: false }`.
+     - Atomic RPC `finalize_ingestion_run(p_run_id, p_status, p_synced, p_dropped, p_total, p_error)`: Cập nhật telemetry và gỡ `active_run_id` trên lease.
+     - Handler `supabase/functions/content-ingest/handler.ts`: Bọc toàn bộ sync action qua `withIngestLease`. Nếu lease bị chiếm giữ, trả về `409 Conflict` kèm `{ error: "lease_held", action }`.
+
+---
+
+## 2. Mục tiêu tham vấn: Kích hoạt Tự động hóa Vận hành (Operational Activation)
+
+Để đưa hệ thống lên production tự động nạp dữ liệu từ Steam API 24/7 mà không phụ thuộc vào kích hoạt thủ công, nhóm đề xuất kiến trúc tự động hóa tiếp theo gồm 4 trụ cột:
+
+### Trụ cột A: Cơ chế Lập lịch (Scheduler Options)
+Đang cân nhắc giữa 3 phương án:
+- **Phương án 1: Supabase Database native (`pg_cron` + `pg_net`)**:
+  - Dùng `pg_cron` gọi hàm SQL nội bộ, hàm này đọc secret từ Supabase Vault rồi dùng `net.http_post()` bắn webhook tới Edge Function `content-ingest`.
+  - Ưu điểm: Tự khép kín trong DB instance, không cần external server hay 3rd party cron.
+  - Nhược điểm: Phụ thuộc extension `pg_net`, có thể gặp vấn đề connection pool hoặc timeout nếu Edge Function xử lý lâu.
+- **Phương án 2: External CI / Scheduled Runner (GitHub Actions Scheduled Workflow)**:
+  - Workflow chạy theo cron matrix gọi curl tới Supabase Edge Function kèm `Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}`.
+  - Ưu điểm: Dễ giám sát qua GitHub Actions tab, retry tự động ngoài DB, không chiếm pool DB.
+  - Nhược điểm: GitHub Actions cron có độ trễ (delay 5-20 phút trong giờ cao điểm), phụ thuộc hạ tầng GitHub.
+- **Phương án 3: Supabase Scheduled Functions / Ingestion Worker Cron**:
+  - Tích hợp qua Supabase cron dashboard / Edge Cron triggers.
+
+### Trụ cột B: Tần suất Lập lịch đề xuất (Cadence & Intervals)
+- **Deals (`sync_steam_deals`)**: Mỗi 2 giờ (`0 */2 * * *`). Vì các deal Steam thay đổi theo khung giờ 10:00 AM PST và các flash sale.
+- **Releases (`sync_steam_releases`)**: Mỗi 6 giờ (`0 */6 * * *`). Dữ liệu featured & new releases biến động chậm hơn.
+- **News (`sync_steam_news`)**: Mỗi 1 giờ (`0 * * * *`) cho danh sách các AppID hot / trọng điểm.
+
+### Trụ cột C: Cơ chế Kill-Switch & Rate Limiting linh hoạt
+- Cần một bảng cấu hình runtime `ingestion_config` (hoặc mở rộng trên `ingestion_leases`):
+  - Cờ `is_enabled BOOLEAN DEFAULT TRUE`: Cho phép admin tạm dừng ingest tức thì (emergency pause) mà không cần can thiệp xóa cron job hay redeploy Edge Function.
+  - Cột `min_interval_seconds INT`: Ngăn chặn việc bấm manual sync liên tục gây quá tải Steam API (cooldown giữa các lần chạy).
+  - Tích hợp kiểm tra cờ này ngay trong RPC `claim_ingestion_run` trước khi cấp lease (nếu `!is_enabled` $\rightarrow$ từ chối với lý do `action_disabled`).
+
+### Trụ cột D: Bảo mật Secret & Quản trị Khóa (Supabase Vault / pgsodium)
+- Khi gọi từ `pg_cron`/`pg_net`, service role key không được hardcode trong migration file.
+- Đề xuất: Sử dụng `vault.decrypted_secrets` hoặc biến config Postgres nội bộ (`current_setting(...)`).
+
+---
+
+## 3. Câu hỏi Phản biện Kỹ thuật dành cho Sy06
+
+Kính nhờ Sy06 đánh giá, phản biện sắc bén và chỉ ra các rủi ro tiềm ẩn (failure modes) của phương án trên:
+
+1. **pg_cron + pg_net vs GitHub Actions Workflow**: Trong thực tế vận hành Supabase, phương án nào ổn định, chịu lỗi tốt hơn và ít rủi ro connection pool exhaustion hơn? Có nên kết hợp hybrid (pg_cron làm primary, GHA làm backup hoặc audit)?
+2. **Lease TTL vs Cron Interval & Stale Lease Recovery**:
+   - Hiện tại handler đang truyền `p_lease_seconds: 300` (5 phút). Nếu worker xử lý Steam specials bị nghẽn mạng mất 4 phút thì sao?
+   - Nếu worker bị crash đột ngột (OOM, network drop) giữa chừng khi chưa kịp gọi `finalize_ingestion_run`, lease sẽ bị treo trong bao lâu? Cơ chế tự expire trong `claim_ingestion_run` hiện tại (`lease_expires_at < v_now`) đã đủ an toàn để giải phóng chưa, hay cần một background cleanup daemon?
+3. **Phản ứng trước mã 409 Conflict từ Cron**: Khi cron kích hoạt nhưng worker trước vẫn đang chạy (trả về 409 `lease_held`), cron job nên xử lý thế nào? Bỏ qua im lặng (silent drop) hay kích hoạt exponential backoff retry?
+4. **Kill-Switch Pattern**: Nên đặt bảng `ingestion_config` riêng biệt hay tích hợp trực tiếp các cờ `is_enabled`, `cooldown_seconds` vào bảng `ingestion_leases` đã có sẵn?
+5. **Rủi ro Steam Web API Rate Limiting**: Khi chạy định kỳ 24/7, Steam API có thể trả về `429 Too Many Requests`. Hệ thống cần chuẩn bị cơ chế gì (backoff, proxy, circuit breaker) để không làm ngập `ingestion_runs` bằng các bản ghi failed liên tiếp?
+6. **Telemetry & Dashboard View**: Cần tạo View hoặc RPC thống kê nào (ví dụ: `v_ingestion_health`, tỷ lệ sync thành công 24h qua) để tiện cho việc audit và alert sau này?
+
+Mong nhận được phân tích chuyên sâu, các điểm bẫy kiến trúc (gotchas) và khuyến nghị chuẩn mực nhất từ Sy06.
