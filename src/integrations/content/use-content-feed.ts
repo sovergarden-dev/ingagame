@@ -1,11 +1,31 @@
 import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { getDeals, getNews, getReleases, requireFeedSuccess } from "./feed";
-import type { ContentFeedResult } from "./feed";
+import {
+  allowMockContentFeed,
+  getDeals,
+  getNews,
+  getReleases,
+  requireFeedSuccess,
+  type ContentFeedResult,
+  type ContentKind,
+  type ViteEnvSlice,
+} from "./feed.ts";
+
+export function getEffectiveFeedMode(
+  env = (import.meta.env ?? {}) as ViteEnvSlice,
+): "live" | "mock" | "hybrid" {
+  if (!allowMockContentFeed(env)) return "live";
+  if (env.VITE_CONTENT_FEED_MOCK === "1") return "mock";
+  return "hybrid";
+}
+
+export function contentFeedQueryKey(kind: ContentKind, mode: string = getEffectiveFeedMode()) {
+  return ["content-feed", mode, kind] as const;
+}
 
 export const CONTENT_FEED_KEY = {
-  releases: ["content-feed", "releases"] as const,
-  deals: ["content-feed", "deals"] as const,
-  news: ["content-feed", "news"] as const,
+  releases: contentFeedQueryKey("releases"),
+  deals: contentFeedQueryKey("deals"),
+  news: contentFeedQueryKey("news"),
 };
 
 const FEED_QUERY = {
@@ -16,7 +36,7 @@ const FEED_QUERY = {
 
 export function useReleasesFeed() {
   return useQuery({
-    queryKey: CONTENT_FEED_KEY.releases,
+    queryKey: contentFeedQueryKey("releases"),
     queryFn: async () => requireFeedSuccess(await getReleases()),
     ...FEED_QUERY,
   });
@@ -24,7 +44,7 @@ export function useReleasesFeed() {
 
 export function useDealsFeed() {
   return useQuery({
-    queryKey: CONTENT_FEED_KEY.deals,
+    queryKey: contentFeedQueryKey("deals"),
     queryFn: async () => requireFeedSuccess(await getDeals()),
     ...FEED_QUERY,
   });
@@ -32,7 +52,7 @@ export function useDealsFeed() {
 
 export function useNewsFeed() {
   return useQuery({
-    queryKey: CONTENT_FEED_KEY.news,
+    queryKey: contentFeedQueryKey("news"),
     queryFn: async () => requireFeedSuccess(await getNews()),
     ...FEED_QUERY,
   });
