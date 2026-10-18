@@ -63,14 +63,19 @@ export function allowMockContentFeed(env: ViteEnvSlice = {}): boolean {
   return true;
 }
 
-export function parseContentFeedResponse(json: unknown): { items: unknown[]; fetchedAt: string } {
+export function parseContentFeedResponse(json: unknown): {
+  items: unknown[];
+  fetchedAt: string;
+  sourceMode?: string;
+} {
   if (!json || typeof json !== "object") {
     throw new Error("invalid_feed");
   }
-  const record = json as { items?: unknown; fetchedAt?: unknown };
+  const record = json as { items?: unknown; fetchedAt?: unknown; sourceMode?: unknown };
   const items = Array.isArray(record.items) ? record.items : [];
   const fetchedAt = typeof record.fetchedAt === "string" ? record.fetchedAt : "";
-  return { items, fetchedAt };
+  const sourceMode = typeof record.sourceMode === "string" ? record.sourceMode : undefined;
+  return { items, fetchedAt, ...(sourceMode ? { sourceMode } : {}) };
 }
 
 export function devMockIfUnrenderable<T>(

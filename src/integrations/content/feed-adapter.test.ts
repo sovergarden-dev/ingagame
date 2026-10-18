@@ -15,6 +15,7 @@ import {
   selectReleaseItems,
   devMockIfUnrenderable,
 } from "./feed.ts";
+import { contentFeedQueryKey, getEffectiveFeedMode } from "./use-content-feed.ts";
 
 describe("contentFeedUrl", () => {
   it("builds GET /functions/v1/content-feed with kind, since, limit", () => {
@@ -58,15 +59,17 @@ describe("showFixtureShelves", () => {
 });
 
 describe("parseContentFeedResponse", () => {
-  it("reads items and fetchedAt and ignores unknown keys", () => {
+  it("reads items, fetchedAt, and sourceMode and ignores unknown keys", () => {
     const parsed = parseContentFeedResponse({
       items: [{ id: "n1" }],
       fetchedAt: "2026-09-07T00:00:00.000Z",
+      sourceMode: "live",
       service_role: "nope",
     });
     assert.deepEqual(parsed, {
       items: [{ id: "n1" }],
       fetchedAt: "2026-09-07T00:00:00.000Z",
+      sourceMode: "live",
     });
   });
 });
@@ -99,6 +102,46 @@ describe("devMockIfUnrenderable", () => {
     );
     assert.equal(kept.source, "server");
     assert.deepEqual(kept.items, []);
+  });
+
+  it("stays empty and server-sourced in DEV when VITE_CONTENT_FEED_MOCK=0 (live fail-closed)", () => {
+    const kept = devMockIfUnrenderable(
+      { items: [], fetchedAt: "2026-09-07T00:00:00.000Z", source: "server", status: "empty" },
+      ["mock"],
+      { DEV: true, VITE_CONTENT_FEED_MOCK: "0" },
+    );
+    assert.equal(kept.source, "server");
+    assert.deepEqual(kept.items, []);
+  });
+});
+
+describe("getEffectiveFeedMode", () => {
+  it("resolves live in production regardless of mock flag", () => {
+    assert.equal(getEffectiveFeedMode({ DEV: false, PROD: true }), "live");
+    assert.equal(
+      getEffectiveFeedMode({ DEV: false, PROD: true, VITE_CONTENT_FEED_MOCK: "1" }),
+      "live",
+    );
+  });
+
+  it("resolves live in DEV when VITE_CONTENT_FEED_MOCK=0", () => {
+    assert.equal(getEffectiveFeedMode({ DEV: true, VITE_CONTENT_FEED_MOCK: "0" }), "live");
+  });
+
+  it("resolves mock in DEV when VITE_CONTENT_FEED_MOCK=1", () => {
+    assert.equal(getEffectiveFeedMode({ DEV: true, VITE_CONTENT_FEED_MOCK: "1" }), "mock");
+  });
+
+  it("resolves hybrid in DEV when no explicit mock flag is passed", () => {
+    assert.equal(getEffectiveFeedMode({ DEV: true }), "hybrid");
+  });
+});
+
+describe("contentFeedQueryKey", () => {
+  it("isolates cache keys between live, mock, and hybrid modes", () => {
+    assert.deepEqual(contentFeedQueryKey("deals", "live"), ["content-feed", "live", "deals"]);
+    assert.deepEqual(contentFeedQueryKey("deals", "mock"), ["content-feed", "mock", "deals"]);
+    assert.deepEqual(contentFeedQueryKey("deals", "hybrid"), ["content-feed", "hybrid", "deals"]);
   });
 });
 
