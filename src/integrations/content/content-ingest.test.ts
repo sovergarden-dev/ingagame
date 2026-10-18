@@ -338,3 +338,96 @@ describe("handleContentIngest - sync_steam_news", () => {
     assert.equal(deps.upserted[0]?.externalId, "news:steam:app:1145350:998877665544");
   });
 });
+
+describe("handleContentIngest - Concurrency Leases & Audit", () => {
+  it("rejects concurrent execution with 409 when lease is held", async () => {
+    let claimedAction: string | undefined;
+    const deps = mockDeps({
+      claimRun: async (action) => {
+        claimedAction = action;
+        return { claimed: false };
+      },
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_deals" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 409);
+    const json = (await res.json()) as { error: string; action: string };
+    assert.equal(json.error, "lease_held");
+    assert.equal(json.action, "sync_steam_deals");
+    assert.equal(claimedAction, "sync_steam_deals");
+    assert.equal(deps.upserted.length, 0);
+  });
+
+  it("finalizes run with stats on completed execution", async () => {
+    let finalizedStatus: string | undefined;
+    let finalizedStats: { synced: number; dropped: number; total: number } | undefined;
+
+    const sample = [
+      {
+        id: 100,
+        name: "Game 1",
+        discount_percent: 20,
+        original_price: 2000,
+        final_price: 1600,
+      },
+    ];
+
+    const deps = mockDeps({
+      fetchSteamSpecials: async () => sample,
+      claimRun: async () => ({ claimed: true, runId: "run-123" }),
+      finalizeRun: async (_runId, status, stats) => {
+        finalizedStatus = status;
+        finalizedStats = stats;
+        return true;
+      },
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_deals" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal(finalizedStatus, "completed");
+    assert.deepEqual(finalizedStats, { synced: 1, dropped: 0, total: 1 });
+  });
+
+  it("finalizes run with failed status when upstream fetch throws", async () => {
+    let finalizedStatus: string | undefined;
+    let finalizedError: string | undefined;
+
+    const deps = mockDeps({
+      fetchSteamSpecials: async () => {
+        throw new Error("steam_down_503");
+      },
+      claimRun: async () => ({ claimed: true, runId: "run-456" }),
+      finalizeRun: async (_runId, status, stats) => {
+        finalizedStatus = status;
+        finalizedError = stats.error;
+        return true;
+      },
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_deals" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 502);
+    assert.equal(finalizedStatus, "failed");
+    assert.ok(finalizedError?.includes("http_status_502"));
+  });
+});

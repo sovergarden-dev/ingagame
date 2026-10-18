@@ -41,6 +41,12 @@ export type MappedRadarEntry = {
 export type IngestDeps = {
   now?: () => Date;
   serviceRoleKey: string;
+  claimRun?: (action: string, trigger?: string) => Promise<{ claimed: boolean; runId?: string }>;
+  finalizeRun?: (
+    runId: string,
+    status: "completed" | "failed",
+    stats: { synced: number; dropped: number; total: number; error?: string },
+  ) => Promise<boolean>;
   upsertItem: (
     kind: "releases" | "deals" | "news",
     externalId: string,
@@ -161,184 +167,249 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
     return jsonResponse({ error: "invalid_body" }, 400);
   }
 
-  const payload = body as { action?: string; items?: unknown[] };
+  const payload = body as { action?: string; items?: unknown[]; trigger?: string };
   const action = payload.action ?? "sync_steam_releases";
   const now = deps.now ? deps.now() : new Date();
 
-  if (action === "sync_steam_releases") {
-    const mapper = deps.mapSteamApp;
-    if (!mapper) {
-      return jsonResponse({ error: "missing_mapper" }, 500);
+  async function withIngestLease(
+    actionName: string,
+    executeFn: () => Promise<Response>,
+  ): Promise<Response> {
+    const trigger = payload.trigger ?? "manual";
+    let runId: string | undefined;
+
+    if (deps.claimRun) {
+      const claim = await deps.claimRun(actionName, trigger);
+      if (!claim.claimed) {
+        return jsonResponse({ error: "lease_held", action: actionName }, 409);
+      }
+      runId = claim.runId;
     }
 
-    const fetcher = deps.fetchSteamFeatured ?? fetchLiveSteamFeatured;
-    let apps: RawSteamApp[] = [];
     try {
-      apps = await fetcher();
+      const res = await executeFn();
+      if (deps.finalizeRun && runId) {
+        if (res.ok) {
+          try {
+            const clone = res.clone();
+            const data = (await clone.json()) as {
+              synced?: number;
+              dropped?: number;
+              total?: number;
+            };
+            await deps.finalizeRun(runId, "completed", {
+              synced: data.synced ?? 0,
+              dropped: data.dropped ?? 0,
+              total: data.total ?? 0,
+            });
+          } catch {
+            await deps.finalizeRun(runId, "completed", { synced: 0, dropped: 0, total: 0 });
+          }
+        } else {
+          await deps.finalizeRun(runId, "failed", {
+            synced: 0,
+            dropped: 0,
+            total: 0,
+            error: `http_status_${res.status}`,
+          });
+        }
+      }
+      return res;
     } catch (err) {
-      return jsonResponse(
-        { error: "steam_fetch_error", details: err instanceof Error ? err.message : String(err) },
-        502,
-      );
+      if (deps.finalizeRun && runId) {
+        await deps.finalizeRun(runId, "failed", {
+          synced: 0,
+          dropped: 0,
+          total: 0,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      throw err;
     }
+  }
 
-    let synced = 0;
-    let dropped = 0;
-    const errors: string[] = [];
-
-    for (const app of apps) {
-      const entry = mapper(app);
-      if (!entry) {
-        dropped++;
-        continue;
+  if (action === "sync_steam_releases") {
+    return withIngestLease(action, async () => {
+      const mapper = deps.mapSteamApp;
+      if (!mapper) {
+        return jsonResponse({ error: "missing_mapper" }, 500);
       }
 
-      // External identity with namespace per Notion Sy06 review: "steam:app:<id>"
-      const externalId = `steam:app:${app.id}`;
+      const fetcher = deps.fetchSteamFeatured ?? fetchLiveSteamFeatured;
+      let apps: RawSteamApp[] = [];
       try {
-        await deps.upsertItem("releases", externalId, now.toISOString(), entry);
-        synced++;
+        apps = await fetcher();
       } catch (err) {
-        dropped++;
-        errors.push(`upsert_failed:${app.id}:${err instanceof Error ? err.message : String(err)}`);
+        return jsonResponse(
+          { error: "steam_fetch_error", details: err instanceof Error ? err.message : String(err) },
+          502,
+        );
       }
-    }
 
-    return jsonResponse(
-      {
-        ok: true,
-        action: "sync_steam_releases",
-        synced,
-        dropped,
-        total: apps.length,
-        errors: errors.slice(0, 10),
-      },
-      200,
-    );
+      let synced = 0;
+      let dropped = 0;
+      const errors: string[] = [];
+
+      for (const app of apps) {
+        const entry = mapper(app);
+        if (!entry) {
+          dropped++;
+          continue;
+        }
+
+        // External identity with namespace per Notion Sy06 review: "steam:app:<id>"
+        const externalId = `steam:app:${app.id}`;
+        try {
+          await deps.upsertItem("releases", externalId, now.toISOString(), entry);
+          synced++;
+        } catch (err) {
+          dropped++;
+          errors.push(
+            `upsert_failed:${app.id}:${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
+      return jsonResponse(
+        {
+          ok: true,
+          action: "sync_steam_releases",
+          synced,
+          dropped,
+          total: apps.length,
+          errors: errors.slice(0, 10),
+        },
+        200,
+      );
+    });
   }
 
   if (action === "sync_steam_deals") {
-    const mapper = deps.mapSteamDeal;
-    if (!mapper) {
-      return jsonResponse({ error: "missing_deal_mapper" }, 500);
-    }
+    return withIngestLease(action, async () => {
+      const mapper = deps.mapSteamDeal;
+      if (!mapper) {
+        return jsonResponse({ error: "missing_deal_mapper" }, 500);
+      }
 
-    const fetcher = deps.fetchSteamSpecials ?? fetchLiveSteamSpecials;
-    let specials: unknown[] = [];
-    try {
-      specials = await fetcher();
-    } catch (err) {
+      const fetcher = deps.fetchSteamSpecials ?? fetchLiveSteamSpecials;
+      let specials: unknown[] = [];
+      try {
+        specials = await fetcher();
+      } catch (err) {
+        return jsonResponse(
+          {
+            error: "steam_specials_fetch_error",
+            details: err instanceof Error ? err.message : String(err),
+          },
+          502,
+        );
+      }
+
+      let synced = 0;
+      let dropped = 0;
+      const errors: string[] = [];
+
+      for (const item of specials) {
+        const mapped = mapper(item, now);
+        if (!mapped) {
+          dropped++;
+          continue;
+        }
+        try {
+          await deps.upsertItem(
+            "deals",
+            mapped.externalId,
+            now.toISOString(),
+            mapped.deal,
+            mapped.expiresAt ?? null,
+            mapped.offerState ?? "active",
+            mapped.sourceFreshUntil ?? null,
+            mapped.offerType ?? "discount",
+            mapped.claimEndsAt ?? null,
+            mapped.accessEndsAt ?? null,
+            mapped.classificationStatus ?? "unverified",
+          );
+          synced++;
+        } catch (err) {
+          dropped++;
+          errors.push(
+            `upsert_failed:${mapped.externalId}:${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
       return jsonResponse(
         {
-          error: "steam_specials_fetch_error",
-          details: err instanceof Error ? err.message : String(err),
+          ok: true,
+          action: "sync_steam_deals",
+          synced,
+          dropped,
+          total: specials.length,
+          errors: errors.slice(0, 10),
         },
-        502,
+        200,
       );
-    }
-
-    let synced = 0;
-    let dropped = 0;
-    const errors: string[] = [];
-
-    for (const item of specials) {
-      const mapped = mapper(item, now);
-      if (!mapped) {
-        dropped++;
-        continue;
-      }
-      try {
-        await deps.upsertItem(
-          "deals",
-          mapped.externalId,
-          now.toISOString(),
-          mapped.deal,
-          mapped.expiresAt ?? null,
-          mapped.offerState ?? "active",
-          mapped.sourceFreshUntil ?? null,
-          mapped.offerType ?? "discount",
-          mapped.claimEndsAt ?? null,
-          mapped.accessEndsAt ?? null,
-          mapped.classificationStatus ?? "unverified",
-        );
-        synced++;
-      } catch (err) {
-        dropped++;
-        errors.push(
-          `upsert_failed:${mapped.externalId}:${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
-
-    return jsonResponse(
-      {
-        ok: true,
-        action: "sync_steam_deals",
-        synced,
-        dropped,
-        total: specials.length,
-        errors: errors.slice(0, 10),
-      },
-      200,
-    );
+    });
   }
 
   if (action === "sync_steam_news") {
-    const mapper = deps.mapSteamNews;
-    if (!mapper) {
-      return jsonResponse({ error: "missing_news_mapper" }, 500);
-    }
-
-    const appIdRaw = (payload as { appId?: unknown }).appId;
-    const appId = typeof appIdRaw === "number" && appIdRaw > 0 ? appIdRaw : 1145350;
-
-    const fetcher = deps.fetchSteamNews ?? fetchLiveSteamNews;
-    let newsItems: unknown[] = [];
-    try {
-      newsItems = await fetcher(appId);
-    } catch (err) {
-      return jsonResponse(
-        {
-          error: "steam_news_fetch_error",
-          details: err instanceof Error ? err.message : String(err),
-        },
-        502,
-      );
-    }
-
-    let synced = 0;
-    let dropped = 0;
-    const errors: string[] = [];
-
-    for (const item of newsItems) {
-      const mapped = mapper(item);
-      if (!mapped) {
-        dropped++;
-        continue;
+    return withIngestLease(action, async () => {
+      const mapper = deps.mapSteamNews;
+      if (!mapper) {
+        return jsonResponse({ error: "missing_news_mapper" }, 500);
       }
+
+      const appIdRaw = (payload as { appId?: unknown }).appId;
+      const appId = typeof appIdRaw === "number" && appIdRaw > 0 ? appIdRaw : 1145350;
+
+      const fetcher = deps.fetchSteamNews ?? fetchLiveSteamNews;
+      let newsItems: unknown[] = [];
       try {
-        await deps.upsertItem("news", mapped.externalId, now.toISOString(), mapped.article);
-        synced++;
+        newsItems = await fetcher(appId);
       } catch (err) {
-        dropped++;
-        errors.push(
-          `upsert_failed:${mapped.externalId}:${err instanceof Error ? err.message : String(err)}`,
+        return jsonResponse(
+          {
+            error: "steam_news_fetch_error",
+            details: err instanceof Error ? err.message : String(err),
+          },
+          502,
         );
       }
-    }
 
-    return jsonResponse(
-      {
-        ok: true,
-        action: "sync_steam_news",
-        appId,
-        synced,
-        dropped,
-        total: newsItems.length,
-        errors: errors.slice(0, 10),
-      },
-      200,
-    );
+      let synced = 0;
+      let dropped = 0;
+      const errors: string[] = [];
+
+      for (const item of newsItems) {
+        const mapped = mapper(item);
+        if (!mapped) {
+          dropped++;
+          continue;
+        }
+        try {
+          await deps.upsertItem("news", mapped.externalId, now.toISOString(), mapped.article);
+          synced++;
+        } catch (err) {
+          dropped++;
+          errors.push(
+            `upsert_failed:${mapped.externalId}:${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
+      return jsonResponse(
+        {
+          ok: true,
+          action: "sync_steam_news",
+          appId,
+          synced,
+          dropped,
+          total: newsItems.length,
+          errors: errors.slice(0, 10),
+        },
+        200,
+      );
+    });
   }
 
   if (action === "ingest_batch") {
