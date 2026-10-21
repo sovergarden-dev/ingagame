@@ -46,6 +46,16 @@ Deno.serve((req) =>
       if (error) throw error;
       return Boolean(data);
     },
+    linkDispatch: async (dispatchId, runId, httpStatus, outcome) => {
+      const { data, error } = await supabase.rpc("link_dispatch_to_run", {
+        p_dispatch_id: dispatchId,
+        p_run_id: runId ?? null,
+        p_http_status: httpStatus ?? null,
+        p_outcome: outcome ?? null,
+      });
+      if (error) throw error;
+      return Boolean(data);
+    },
     mapSteamApp: mapSteamAppToRadarEntry,
     mapSteamDeal: (special) => mapSteamSpecialToDeal(special as unknown as RawSteamSpecial),
     mapSteamNews: (item) => mapSteamNewsToArticle(item as unknown as RawSteamNewsItem),

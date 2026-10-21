@@ -25,6 +25,12 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
     accessEndsAt?: string | null;
     classificationStatus?: string;
   }[];
+  dispatchesLinked: {
+    dispatchId: string;
+    runId?: string | undefined;
+    httpStatus?: number | undefined;
+    outcome?: string | undefined;
+  }[];
 } {
   const upserted: {
     runId: string;
@@ -39,6 +45,12 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
     claimEndsAt?: string | null;
     accessEndsAt?: string | null;
     classificationStatus?: string;
+  }[] = [];
+  const dispatchesLinked: {
+    dispatchId: string;
+    runId?: string | undefined;
+    httpStatus?: number | undefined;
+    outcome?: string | undefined;
   }[] = [];
   return {
     serviceRoleKey: SERVICE_KEY,
@@ -77,6 +89,11 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
     mapSteamDeal: (item, now) => mapSteamSpecialToDeal(item as RawSteamSpecial, "us", now),
     mapSteamNews: (item) => mapSteamNewsToArticle(item as RawSteamNewsItem),
     upserted,
+    dispatchesLinked,
+    linkDispatch: async (dispatchId, runId, httpStatus, outcome) => {
+      dispatchesLinked.push({ dispatchId, runId, httpStatus, outcome });
+      return true;
+    },
     ...overrides,
   };
 }
@@ -549,5 +566,61 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
     );
     assert.equal(res.status, 200);
     assert.equal(deps.upserted[0]?.runId, "batch-run-777");
+  });
+
+  it("correlates dispatchId with runId on running and completed execution", async () => {
+    const sample = [
+      {
+        id: 100,
+        name: "Game 1",
+        discount_percent: 20,
+        original_price: 2000,
+        final_price: 1600,
+      },
+    ];
+
+    const deps = mockDeps({
+      fetchSteamSpecials: async () => sample,
+      claimRun: async () => ({ claimed: true, runId: "run-dispatch-1" }),
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_deals", dispatchId: "disp-101" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal(deps.dispatchesLinked.length, 2);
+    assert.equal(deps.dispatchesLinked[0]?.dispatchId, "disp-101");
+    assert.equal(deps.dispatchesLinked[0]?.runId, "run-dispatch-1");
+    assert.equal(deps.dispatchesLinked[0]?.outcome, "running");
+
+    assert.equal(deps.dispatchesLinked[1]?.dispatchId, "disp-101");
+    assert.equal(deps.dispatchesLinked[1]?.runId, "run-dispatch-1");
+    assert.equal(deps.dispatchesLinked[1]?.httpStatus, 200);
+    assert.equal(deps.dispatchesLinked[1]?.outcome, "completed");
+  });
+
+  it("correlates dispatchId with rejection status on lease conflict", async () => {
+    const deps = mockDeps({
+      claimRun: async () => ({ claimed: false, reason: "lease_held" }),
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_steam_deals", dispatchId: "disp-conflict" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 409);
+    assert.equal(deps.dispatchesLinked.length, 1);
+    assert.equal(deps.dispatchesLinked[0]?.dispatchId, "disp-conflict");
+    assert.equal(deps.dispatchesLinked[0]?.httpStatus, 409);
+    assert.equal(deps.dispatchesLinked[0]?.outcome, "lease_held");
   });
 });

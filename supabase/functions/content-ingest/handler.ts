@@ -50,6 +50,12 @@ export type IngestDeps = {
     status: "completed" | "failed",
     stats: { synced: number; dropped: number; total: number; error?: string },
   ) => Promise<boolean>;
+  linkDispatch?: (
+    dispatchId: string,
+    runId?: string,
+    httpStatus?: number,
+    outcome?: string,
+  ) => Promise<boolean>;
   upsertItem: (
     runId: string,
     kind: "releases" | "deals" | "news",
@@ -171,7 +177,13 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
     return jsonResponse({ error: "invalid_body" }, 400);
   }
 
-  const payload = body as { action?: string; items?: unknown[]; trigger?: string };
+  const payload = body as {
+    action?: string;
+    items?: unknown[];
+    trigger?: string;
+    dispatchId?: string;
+    appId?: unknown;
+  };
   const action = payload.action ?? "sync_steam_releases";
   const now = deps.now ? deps.now() : new Date();
 
@@ -180,23 +192,32 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
     executeFn: (runId: string) => Promise<Response>,
   ): Promise<Response> {
     const trigger = payload.trigger ?? "manual";
+    const dispatchId =
+      typeof payload.dispatchId === "string" && payload.dispatchId.trim()
+        ? payload.dispatchId.trim()
+        : undefined;
     let runId: string;
 
     if (deps.claimRun) {
       const claim = await deps.claimRun(actionName, trigger);
       if (!claim.claimed) {
         const reason = claim.reason ?? "lease_held";
-        if (reason === "action_disabled") {
-          return jsonResponse({ error: "action_disabled", action: actionName, reason }, 409);
+        let status = 409;
+        if (reason === "action_disabled") status = 409;
+        else if (reason === "cooldown_active") status = 429;
+
+        if (dispatchId && deps.linkDispatch) {
+          await deps.linkDispatch(dispatchId, undefined, status, reason).catch(() => false);
         }
-        if (reason === "cooldown_active") {
-          return jsonResponse({ error: "cooldown_active", action: actionName, reason }, 429);
-        }
-        return jsonResponse({ error: "lease_held", action: actionName, reason }, 409);
+        return jsonResponse({ error: reason, action: actionName, reason }, status);
       }
       runId = claim.runId ?? "00000000-0000-0000-0000-000000000000";
     } else {
       runId = "00000000-0000-0000-0000-000000000000";
+    }
+
+    if (dispatchId && deps.linkDispatch) {
+      await deps.linkDispatch(dispatchId, runId, 200, "running").catch(() => false);
     }
 
     try {
@@ -227,6 +248,11 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
           });
         }
       }
+      if (dispatchId && deps.linkDispatch) {
+        await deps
+          .linkDispatch(dispatchId, runId, res.status, res.ok ? "completed" : "failed")
+          .catch(() => false);
+      }
       return res;
     } catch (err) {
       if (deps.finalizeRun && deps.claimRun) {
@@ -236,6 +262,9 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
           total: 0,
           error: err instanceof Error ? err.message : String(err),
         });
+      }
+      if (dispatchId && deps.linkDispatch) {
+        await deps.linkDispatch(dispatchId, runId, 500, "failed").catch(() => false);
       }
       throw err;
     }
