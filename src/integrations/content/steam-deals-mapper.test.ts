@@ -49,6 +49,7 @@ describe("mapSteamSpecialToDeal", () => {
     assert.equal(res.deal.gameSummary.id, "steam-1145350");
     assert.equal(res.deal.gameSummary.title, "Hades II");
     assert.equal(res.deal.gameSummary.steamAppId, 1145350);
+    assert.deepEqual(res.deal.gameSummary.storeRefs, [{ store: "steam", appId: 1145350 }]);
     assert.equal(res.deal.gameSummary.source, "steam");
 
     // Schema verification

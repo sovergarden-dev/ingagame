@@ -69,6 +69,37 @@ describe("resolveGameSteamAppId", () => {
     const resolver = () => undefined;
     assert.equal(resolveGameSteamAppId("730", resolver), undefined);
   });
+
+  it("resolves steamAppId from storeRefs when top-level steamAppId is absent", () => {
+    const summary = {
+      id: "game-summary-1",
+      title: "Store Ref Game",
+      storeRefs: [{ store: "steam" as const, appId: 1091500 }],
+    };
+    assert.equal(resolveGameSteamAppId(summary), 1091500);
+  });
+
+  it("returns undefined when storeRefs contains non-Steam stores", () => {
+    const epicSummary = {
+      id: "epic-game-1",
+      title: "Epic Only Game",
+      storeRefs: [
+        { store: "epic" as const, namespace: "ns", offerId: "off-1" },
+        { store: "gog" as const, productId: "gog-1" },
+      ],
+    };
+    assert.equal(resolveGameSteamAppId(epicSummary), undefined);
+  });
+
+  it("prioritizes direct steamAppId over storeRefs", () => {
+    const dual = {
+      id: "dual-id",
+      title: "Dual Game",
+      steamAppId: 730,
+      storeRefs: [{ store: "steam" as const, appId: 570 }],
+    };
+    assert.equal(resolveGameSteamAppId(dual), 730);
+  });
 });
 
 describe("getOwnershipStatus", () => {
