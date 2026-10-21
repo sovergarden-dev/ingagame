@@ -9,6 +9,10 @@ import {
   mapSteamNewsToArticle,
   type RawSteamNewsItem,
 } from "../../src/integrations/content/steam-news-mapper.ts";
+import {
+  mapEpicFreeGameToDeal,
+  type RawEpicFreeGameElement,
+} from "../../src/integrations/content/epic-free-games-mapper.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -59,6 +63,7 @@ Deno.serve((req) =>
     mapSteamApp: mapSteamAppToRadarEntry,
     mapSteamDeal: (special) => mapSteamSpecialToDeal(special as unknown as RawSteamSpecial),
     mapSteamNews: (item) => mapSteamNewsToArticle(item as unknown as RawSteamNewsItem),
+    mapEpicDeal: (elem) => mapEpicFreeGameToDeal(elem as unknown as RawEpicFreeGameElement),
     upsertItem: async (
       runId,
       kind,

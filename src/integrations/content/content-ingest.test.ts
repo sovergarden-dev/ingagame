@@ -7,6 +7,7 @@ import {
 import { mapSteamAppToRadarEntry, type RawSteamApp } from "./steam-release-mapper.ts";
 import { mapSteamSpecialToDeal, type RawSteamSpecial } from "./steam-deals-mapper.ts";
 import { mapSteamNewsToArticle, type RawSteamNewsItem } from "./steam-news-mapper.ts";
+import { mapEpicFreeGameToDeal, type RawEpicFreeGameElement } from "./epic-free-games-mapper.ts";
 
 const SERVICE_KEY = "test-service-role-key-12345";
 
@@ -88,6 +89,7 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
     mapSteamApp: mapSteamAppToRadarEntry,
     mapSteamDeal: (item, now) => mapSteamSpecialToDeal(item as RawSteamSpecial, "us", now),
     mapSteamNews: (item) => mapSteamNewsToArticle(item as RawSteamNewsItem),
+    mapEpicDeal: (item, now) => mapEpicFreeGameToDeal(item as RawEpicFreeGameElement, "us", now),
     upserted,
     dispatchesLinked,
     linkDispatch: async (dispatchId, runId, httpStatus, outcome) => {
@@ -357,6 +359,103 @@ describe("handleContentIngest - sync_steam_news", () => {
     assert.equal(deps.upserted.length, 1);
     assert.equal(deps.upserted[0]?.kind, "news");
     assert.equal(deps.upserted[0]?.externalId, "news:steam:app:1145350:998877665544");
+  });
+});
+
+describe("handleContentIngest - sync_epic_free_games", () => {
+  const sampleEpicElements: RawEpicFreeGameElement[] = [
+    {
+      id: "epic-offer-1",
+      namespace: "epic-ns-1",
+      title: "Ghostwire: Tokyo",
+      offerType: "BASE_GAME",
+      productSlug: "ghostwire-tokyo/home",
+      price: {
+        totalPrice: { discountPrice: 0, originalPrice: 5999, currencyCode: "USD" },
+      },
+      promotions: {
+        promotionalOffers: [
+          {
+            promotionalOffers: [
+              {
+                startDate: "2026-10-15T00:00:00.000Z",
+                endDate: "2026-10-25T00:00:00.000Z",
+                discountSetting: { discountPercentage: 0 },
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      id: "epic-offer-2",
+      namespace: "epic-ns-2",
+      title: "Upcoming Mystery Game",
+      offerType: "BASE_GAME",
+      promotions: {
+        promotionalOffers: [
+          {
+            promotionalOffers: [
+              {
+                startDate: "2026-11-01T00:00:00.000Z",
+                endDate: "2026-11-08T00:00:00.000Z",
+                discountSetting: { discountPercentage: 0 },
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ];
+
+  it("ingests active free Epic promotions into deals with storeRefs and free_to_keep", async () => {
+    const deps = mockDeps({
+      fetchEpicFreeGames: async () => sampleEpicElements,
+      claimRun: async () => ({ claimed: true, runId: "epic-run-1" }),
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_epic_free_games" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 200);
+    const json = (await res.json()) as {
+      ok: boolean;
+      synced: number;
+      dropped: number;
+      total: number;
+    };
+    assert.equal(json.ok, true);
+    assert.equal(json.synced, 1);
+    assert.equal(json.dropped, 1);
+    assert.equal(json.total, 2);
+
+    assert.equal(deps.upserted.length, 1);
+    assert.equal(deps.upserted[0]?.kind, "deals");
+    assert.equal(deps.upserted[0]?.runId, "epic-run-1");
+    assert.equal(deps.upserted[0]?.offerType, "free_to_keep");
+  });
+
+  it("handles upstream Epic fetch failure with 502", async () => {
+    const deps = mockDeps({
+      fetchEpicFreeGames: async () => {
+        throw new Error("epic_network_timeout");
+      },
+    });
+
+    const res = await handleContentIngest(
+      req({
+        auth: `Bearer ${SERVICE_KEY}`,
+        body: { action: "sync_epic_free_games" },
+      }),
+      deps,
+    );
+
+    assert.equal(res.status, 502);
   });
 });
 

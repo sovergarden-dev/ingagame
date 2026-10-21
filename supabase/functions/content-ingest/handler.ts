@@ -1,5 +1,7 @@
 export const STEAM_FEATURED_URL =
   "https://store.steampowered.com/api/featuredcategories/?l=english";
+export const EPIC_FREE_GAMES_URL =
+  "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US";
 
 export function corsHeaders(): Record<string, string> {
   return {
@@ -89,6 +91,21 @@ export type IngestDeps = {
   } | null;
   fetchSteamNews?: (appId: number) => Promise<unknown[]>;
   mapSteamNews?: (item: unknown) => { article: unknown; externalId: string } | null;
+  fetchEpicFreeGames?: () => Promise<unknown[]>;
+  mapEpicDeal?: (
+    element: unknown,
+    now?: Date,
+  ) => {
+    deal: unknown;
+    externalId: string;
+    expiresAt?: string | null;
+    offerState?: string;
+    sourceFreshUntil?: string | null;
+    offerType?: string;
+    claimEndsAt?: string | null;
+    accessEndsAt?: string | null;
+    classificationStatus?: string;
+  } | null;
 };
 
 function jsonResponse(body: unknown, status: number): Response {
@@ -149,6 +166,28 @@ export async function fetchLiveSteamNews(appId: number): Promise<unknown[]> {
   }
   const json = (await res.json()) as { appnews?: { newsitems?: unknown[] } };
   return json?.appnews?.newsitems ?? [];
+}
+
+export async function fetchLiveEpicFreeGames(): Promise<unknown[]> {
+  const res = await fetch(EPIC_FREE_GAMES_URL, {
+    headers: {
+      "User-Agent": "GamePulse-Ingest/1.0",
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`epic_fetch_failed: ${res.status}`);
+  }
+  const json = (await res.json()) as {
+    data?: {
+      Catalog?: {
+        searchStore?: {
+          elements?: unknown[];
+        };
+      };
+    };
+  };
+  return json?.data?.Catalog?.searchStore?.elements ?? [];
 }
 
 export async function handleContentIngest(req: Request, deps: IngestDeps): Promise<Response> {
@@ -460,6 +499,77 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
           synced,
           dropped,
           total: newsItems.length,
+          errors: errors.slice(0, 10),
+        },
+        200,
+      );
+    });
+  }
+
+  if (action === "sync_epic_free_games") {
+    return withIngestLease(action, async (activeRunId) => {
+      const mapper = deps.mapEpicDeal;
+      if (!mapper) {
+        return jsonResponse({ error: "missing_epic_mapper" }, 500);
+      }
+
+      const fetcher = deps.fetchEpicFreeGames ?? fetchLiveEpicFreeGames;
+      let elements: unknown[] = [];
+      try {
+        elements = await fetcher();
+      } catch (err) {
+        return jsonResponse(
+          {
+            error: "epic_fetch_error",
+            details: err instanceof Error ? err.message : String(err),
+          },
+          502,
+        );
+      }
+
+      let synced = 0;
+      let dropped = 0;
+      const errors: string[] = [];
+
+      for (const item of elements) {
+        const mapped = mapper(item, now);
+        if (!mapped) {
+          dropped++;
+          continue;
+        }
+        try {
+          await deps.upsertItem(
+            activeRunId,
+            "deals",
+            mapped.externalId,
+            now.toISOString(),
+            mapped.deal,
+            mapped.expiresAt,
+            mapped.offerState,
+            mapped.sourceFreshUntil,
+            mapped.offerType,
+            mapped.claimEndsAt,
+            mapped.accessEndsAt,
+            mapped.classificationStatus,
+          );
+          synced++;
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (errMsg.includes("lease_")) {
+            return jsonResponse({ error: "lease_lost", action, details: errMsg }, 409);
+          }
+          dropped++;
+          errors.push(`upsert_failed:${mapped.externalId}:${errMsg}`);
+        }
+      }
+
+      return jsonResponse(
+        {
+          ok: true,
+          action: "sync_epic_free_games",
+          synced,
+          dropped,
+          total: elements.length,
           errors: errors.slice(0, 10),
         },
         200,
