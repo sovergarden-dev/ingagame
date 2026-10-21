@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   dealsForGame,
   dealsForPlatforms,
+  filterOffersByQueryAndDiscount,
   filterOwnedDeals,
   filterOwnedGiveaways,
   liveDeals,
@@ -138,6 +139,76 @@ describe("filterOwnedGiveaways", () => {
     assert.deepEqual(
       result.map((g) => g.id),
       ["gw2", "gw3", "gw4"],
+    );
+  });
+
+  it("checks gameSummary directly on giveaway when present", () => {
+    const giveaways = [
+      {
+        id: "gw-sum-owned",
+        gameId: "none",
+        gameSummary: { id: "s-1", title: "Game", steamAppId: 100 },
+      },
+      {
+        id: "gw-sum-free",
+        gameId: "none",
+        gameSummary: { id: "s-2", title: "Game 2", steamAppId: 200 },
+      },
+    ];
+
+    const result = filterOwnedGiveaways(giveaways, () => undefined, mockOwns);
+    assert.deepEqual(
+      result.map((g) => g.id),
+      ["gw-sum-free"],
+    );
+  });
+});
+
+describe("filterOffersByQueryAndDiscount", () => {
+  const items = [
+    {
+      id: "1",
+      discountPercent: 80,
+      gameSummary: { title: "Hades II" },
+      store: "Steam",
+    },
+    {
+      id: "2",
+      discountPercent: 50,
+      gameSummary: { title: "Hollow Knight" },
+      store: "GOG",
+    },
+    {
+      id: "3",
+      discountPercent: 100,
+      gameSummary: { title: "Death Stranding" },
+      store: "Epic Games Store",
+    },
+  ];
+
+  it("filters by case-insensitive title search query", () => {
+    const result = filterOffersByQueryAndDiscount(items, "hades");
+    assert.equal(result.length, 1);
+    assert.equal(result[0]?.id, "1");
+  });
+
+  it("filters by store name", () => {
+    const result = filterOffersByQueryAndDiscount(items, "epic");
+    assert.equal(result.length, 1);
+    assert.equal(result[0]?.id, "3");
+  });
+
+  it("filters by minimum discount threshold", () => {
+    const over75 = filterOffersByQueryAndDiscount(items, "", 75);
+    assert.deepEqual(
+      over75.map((i) => i.id),
+      ["1", "3"],
+    );
+
+    const full100 = filterOffersByQueryAndDiscount(items, "", 100);
+    assert.deepEqual(
+      full100.map((i) => i.id),
+      ["3"],
     );
   });
 });

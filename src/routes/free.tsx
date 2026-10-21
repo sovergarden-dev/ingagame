@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { canonicalLinks } from "@/domain/seo";
-import { Gift, Timer } from "lucide-react";
+import { Gift, Search, Timer } from "lucide-react";
 import { PageShell } from "@/components/gp/PageShell";
 import { FilterChip } from "@/components/gp/FilterChip";
 import { SteamOwnershipBadge } from "@/components/gp/SteamOwnershipBadge";
@@ -10,10 +10,16 @@ import { EmptyState } from "@/components/gp/EmptyState";
 import { FeedGate } from "@/components/gp/FeedGate";
 import { PlatformBadgeList } from "@/components/gp/PlatformBadge";
 import { WishlistButton } from "@/components/gp/WishlistButton";
+import { Input } from "@/components/ui/input";
 import { GIVEAWAYS, getGame } from "@/domain/mock-data";
 import { freshnessFromFeed, showFixtureShelves } from "@/integrations/content/feed";
 import { feedGateProps, useFreeOffersFeed } from "@/integrations/content/use-content-feed";
-import { filterOwnedGiveaways, hasEnded, isEndingSoon } from "@/domain/deal";
+import {
+  filterOffersByQueryAndDiscount,
+  filterOwnedGiveaways,
+  hasEnded,
+  isEndingSoon,
+} from "@/domain/deal";
 import { countdownFrom } from "@/domain/release";
 import { useNow } from "@/hooks/use-now";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -171,6 +177,7 @@ function FreePage() {
   const now = useNow();
   const freeFeed = useFreeOffersFeed();
   const { hideOwned, set: setPref } = usePreferences();
+  const [searchQuery, setSearchQuery] = useState("");
   const { status: steamStatus, syncStatus: steamSyncStatus, getOwnership } = useSteam();
   const canFilterOwned =
     steamStatus === "connected" &&
@@ -188,9 +195,11 @@ function FreePage() {
   }, [freeFeed.data?.items, fixtures]);
 
   const giveaways = useMemo(() => {
-    if (!effectiveHideOwned) return rawGiveaways;
-    return filterOwnedGiveaways(rawGiveaways, (id) => getGame(id), getOwnership);
-  }, [rawGiveaways, effectiveHideOwned, getOwnership]);
+    const scoped = effectiveHideOwned
+      ? filterOwnedGiveaways(rawGiveaways, (id) => getGame(id), getOwnership)
+      : rawGiveaways;
+    return filterOffersByQueryAndDiscount(scoped, searchQuery);
+  }, [rawGiveaways, effectiveHideOwned, getOwnership, searchQuery]);
 
   const expiredList = giveaways.filter((g) => hasEnded(g.endsAt, now));
   const soon = giveaways.filter((g) => isEndingSoon(g.endsAt, now));
@@ -210,6 +219,18 @@ function FreePage() {
       freshness={freshness}
       toolbar={
         <div className="flex flex-wrap items-center gap-1.5">
+          <div className="relative w-full sm:w-48">
+            <Search
+              aria-hidden
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none"
+            />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search giveaways..."
+              className="h-8 pl-8 text-xs bg-background/50"
+            />
+          </div>
           <FilterChip
             active={effectiveHideOwned}
             disabled={!canFilterOwned}

@@ -1,15 +1,22 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Percent, Tag, Timer } from "lucide-react";
+import { Percent, Search, Tag, Timer } from "lucide-react";
 import { PageShell } from "@/components/gp/PageShell";
 import { FilterChip, Segmented } from "@/components/gp/FilterChip";
 import { DealCard } from "@/components/gp/DealCard";
 import { SectionHeader } from "@/components/gp/SectionHeader";
 import { EmptyState } from "@/components/gp/EmptyState";
 import { FeedGate } from "@/components/gp/FeedGate";
+import { Input } from "@/components/ui/input";
 import { freshnessFromFeed } from "@/integrations/content/feed";
 import { feedGateProps, useDealsFeed } from "@/integrations/content/use-content-feed";
-import { dealsForPlatforms, filterOwnedDeals, isDealExpired, liveDeals } from "@/domain/deal";
+import {
+  dealsForPlatforms,
+  filterOffersByQueryAndDiscount,
+  filterOwnedDeals,
+  isDealExpired,
+  liveDeals,
+} from "@/domain/deal";
 import { usePreferences } from "@/preferences/PreferencesProvider";
 import { useSteam } from "@/integrations/steam/SteamProvider";
 import { countdownFrom } from "@/domain/release";
@@ -95,6 +102,8 @@ function DealsPage() {
   const [sort, setSort] = useState<SortId>("discount");
   const [stores, setStores] = useState<string[]>([]);
   const [mineOnly, setMineOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [minDiscount, setMinDiscount] = useState<number>(0);
   const { myPlatforms, hideOwned, set: setPref } = usePreferences();
   const { status: steamStatus, syncStatus: steamSyncStatus, getOwnership } = useSteam();
   const canFilterOwned =
@@ -108,8 +117,20 @@ function DealsPage() {
     const storeScoped = stores.length ? deals.filter((d) => stores.includes(d.store)) : deals;
     const scoped = mineOnly ? dealsForPlatforms(storeScoped, myPlatforms) : storeScoped;
     const ownershipScoped = effectiveHideOwned ? filterOwnedDeals(scoped, getOwnership) : scoped;
-    return sortDeals(ownershipScoped, sort, now);
-  }, [deals, sort, stores, now, mineOnly, myPlatforms, effectiveHideOwned, getOwnership]);
+    const searchScoped = filterOffersByQueryAndDiscount(ownershipScoped, searchQuery, minDiscount);
+    return sortDeals(searchScoped, sort, now);
+  }, [
+    deals,
+    sort,
+    stores,
+    now,
+    mineOnly,
+    myPlatforms,
+    effectiveHideOwned,
+    getOwnership,
+    searchQuery,
+    minDiscount,
+  ]);
   const featured = filtered.slice(0, 3);
   const rest = filtered.slice(3);
   const freshness = freshnessFromFeed(feed.data, feed.isPending, Date.now(), feed.isError);
@@ -121,6 +142,18 @@ function DealsPage() {
       freshness={freshness}
       toolbar={
         <>
+          <div className="relative w-full sm:w-48">
+            <Search
+              aria-hidden
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none"
+            />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search deals..."
+              className="h-8 pl-8 text-xs bg-background/50"
+            />
+          </div>
           <Segmented<SortId>
             label={t("deals.all")}
             value={sort}
@@ -132,6 +165,18 @@ function DealsPage() {
             ]}
           />
           <div className="flex flex-wrap items-center gap-1.5">
+            <FilterChip
+              active={minDiscount === 50}
+              onClick={() => setMinDiscount((prev) => (prev === 50 ? 0 : 50))}
+            >
+              ≥50%
+            </FilterChip>
+            <FilterChip
+              active={minDiscount === 75}
+              onClick={() => setMinDiscount((prev) => (prev === 75 ? 0 : 75))}
+            >
+              ≥75%
+            </FilterChip>
             <span className="gp-eyebrow mr-1">{t("deals.store")}</span>
             <FilterChip
               active={effectiveHideOwned}

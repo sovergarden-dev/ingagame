@@ -96,6 +96,7 @@ export function mapSteamSpecialToDeal(
     title: special.name.trim(),
     coverUrl,
     steamAppId: special.id,
+    storeRefs: [{ store: "steam", appId: special.id }],
     platformAvailability: {
       windows: special.windows_available ?? null,
       mac: special.mac_available ?? null,

@@ -109,13 +109,43 @@ export function filterOwnedDeals<T extends { game?: Game; gameSummary?: GameSumm
  * Fail-open contract: if game cannot be found or ownership is unknown,
  * the giveaway is preserved.
  */
-export function filterOwnedGiveaways<T extends { gameId: string }>(
+export function filterOwnedGiveaways<
+  T extends { gameId: string; game?: Game; gameSummary?: GameSummary },
+>(
   giveaways: T[],
   getGameFn: (id: string) => Game | undefined,
   owns: (game: Game | GameSummary) => OwnershipStatus,
 ): T[] {
   return giveaways.filter((g) => {
-    const game = getGameFn(g.gameId);
-    return game ? !shouldHideOwnedGame(game, true, owns) : true;
+    const target = g.game ?? g.gameSummary ?? getGameFn(g.gameId);
+    return target ? !shouldHideOwnedGame(target, true, owns) : true;
+  });
+}
+
+/**
+ * Filters deals or giveaways by minimum discount percentage and case-insensitive title search query.
+ */
+export function filterOffersByQueryAndDiscount<
+  T extends {
+    discountPercent?: number;
+    game?: { title?: string; originalTitle?: string };
+    gameSummary?: { title?: string };
+    store?: string;
+  },
+>(items: T[], query = "", minDiscount = 0): T[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  return items.filter((item) => {
+    if (minDiscount > 0 && (item.discountPercent ?? 100) < minDiscount) {
+      return false;
+    }
+    if (!normalizedQuery) return true;
+    const title = (item.game?.title ?? item.gameSummary?.title ?? "").toLowerCase();
+    const orig = (item.game?.originalTitle ?? "").toLowerCase();
+    const store = (item.store ?? "").toLowerCase();
+    return (
+      title.includes(normalizedQuery) ||
+      orig.includes(normalizedQuery) ||
+      store.includes(normalizedQuery)
+    );
   });
 }

@@ -60,6 +60,7 @@ export interface Game {
   platforms: PlatformId[];
   /** Canonical Steam AppID (uint32 > 0). Undefined if not on Steam or fictional. */
   steamAppId?: number;
+  storeRefs?: StoreRef[];
   /** A game has many release events; never a single releaseDate field. */
   releaseEvents: ReleaseEvent[];
   hypeScore?: number;
@@ -79,11 +80,18 @@ export interface PlatformAvailability {
   linux?: boolean | null;
 }
 
+export type StoreRef =
+  | { store: "steam"; appId: number }
+  | { store: "epic"; namespace: string; offerId: string; slug?: string }
+  | { store: "gog"; productId: string };
+
 export interface GameSummary {
   id: string;
   title: string;
   coverUrl?: string;
+  /** @deprecated Prefer storeRefs; kept for backward compatibility. */
   steamAppId?: number;
+  storeRefs?: StoreRef[];
   platformAvailability?: PlatformAvailability;
   source?: string;
   observedAt?: string;

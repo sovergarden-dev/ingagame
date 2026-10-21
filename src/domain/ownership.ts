@@ -17,7 +17,17 @@ export function resolveGameSteamAppId(
   catalogueResolver?: (id: string) => Game | undefined,
 ): number | undefined {
   if (typeof gameOrId === "object" && gameOrId !== null) {
-    return isValidSteamAppId(gameOrId.steamAppId) ? gameOrId.steamAppId : undefined;
+    if (isValidSteamAppId(gameOrId.steamAppId)) {
+      return gameOrId.steamAppId;
+    }
+    if ("storeRefs" in gameOrId && Array.isArray(gameOrId.storeRefs)) {
+      const steamRef = gameOrId.storeRefs.find(
+        (ref): ref is { store: "steam"; appId: number } =>
+          ref.store === "steam" && isValidSteamAppId(ref.appId),
+      );
+      if (steamRef) return steamRef.appId;
+    }
+    return undefined;
   }
   if (typeof gameOrId === "string" && catalogueResolver) {
     const game = catalogueResolver(gameOrId);

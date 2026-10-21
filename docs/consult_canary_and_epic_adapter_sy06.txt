@@ -1,0 +1,79 @@
+# ARCHITECTURAL CONSULTATION & CRITIQUE: Canary Scheduler & Epic Free Games Adapter Review
+# Workspace: Sy06
+# Dự án: IngaGame / GamePulse (G:/AI/cursor/ingagame)
+# Ngày: 2026-10-18
+
+Kính gửi Notion AI (Sy06),
+
+Nhóm kỹ thuật đã hoàn thành các bước P0 (PR #23: Owner-Safe Write Guard với run_id fencing và PR #24: Dispatch Ledger & Watchdog). Hiện nhóm đang chuẩn bị bước vào giai đoạn Canary Scheduler kết hợp Multi-Provider Adapter (Epic Free Games) và Discovery Filters theo lộ trình đã được Sy06 định hướng.
+
+Trước khi hoàn tất kiểm thử và mở PR, kính nhờ Sy06 đánh giá, phản biện sắc bén và rà soát các rủi ro tiềm ẩn (failure modes) trong 3 thành phần cụ thể vừa được soạn thảo:
+
+---
+
+## 1. CANARY SCHEDULER & TELEMETRY COLLECTOR MIGRATION
+Tệp: `supabase/migrations/20261018080000_canary_scheduler_and_collector.sql`
+
+1. **Cập nhật RPC `upsert_content_item`**:
+   - Mở rộng ràng buộc `action <-> kind`: Cho phép cả `sync_steam_deals` VÀ `sync_epic_free_games` ghi vào kind `'deals'`.
+   - Vẫn bảo lưu nghiêm ngặt: `sync_steam_releases` chỉ ghi `'releases'`, `sync_steam_news` chỉ ghi `'news'`.
+   - Bổ sung cấu hình mặc định vào `ingestion_config` cho `'sync_epic_free_games'`.
+
+2. **Schema `private` & Wrapper `dispatch_ingestion_action`**:
+   - Allowlist nghiêm ngặt: Chỉ cho phép 4 actions đã được phê chuẩn (`sync_steam_deals`, `sync_steam_releases`, `sync_steam_news`, `sync_epic_free_games`).
+   - Đọc endpoint URL và service role key từ Supabase Vault (`vault.decrypted_secrets` với `ingest_endpoint_url` và `ingest_service_role_key`).
+   - **Fail-closed contract**: Nếu Vault chưa provision bí mật $\rightarrow$ ghi nhận dispatch vào `ingestion_dispatches` với trạng thái `skipped_unconfigured`, tuyệt đối không gọi HTTP mù hoặc fallback về token rỗng.
+   - Gọi `net.http_post` với explicit `timeout_milliseconds := 30000` (30 giây) để tránh deadlock/treo kết nối.
+   - Lưu `pg_net_request_id` vào `ingestion_dispatches` trong cùng transaction với enqueued dispatch record.
+
+3. **Telemetry Collector `private.collect_pg_net_dispatch_outcomes()`**:
+   - Quét bảng nội bộ `net._http_response` mỗi 10 phút để cập nhật `response_at`, `http_status`, `transport_error` (`http_timeout`, message lỗi), và phân loại outcome (`http_ok`, `conflict_or_disabled`, `cooldown_throttled`, `unknown_timeout`).
+   - Độc lập hoàn toàn với việc trigger sync (collector chỉ thu gom telemetry, không tự gọi run).
+
+4. **Kích hoạt Canary Schedule**:
+   - Kiểm tra `cron.schedule`: Chỉ đăng ký lịch cho **duy nhất 1 action canary là `sync_steam_deals`** vào phút lẻ (`7 */2 * * *`) trong 48 giờ để đo lường.
+   - Chưa bật lịch cho releases hay news cho tới khi canary đạt gate.
+
+---
+
+## 2. MULTI-PROVIDER IDENTITY & STOREREFS CONTRACT
+Tệp: `src/domain/types.ts` & `src/domain/ownership.ts`
+
+1. **Hợp đồng `StoreRef`**:
+   - Định nghĩa discriminated union:
+     ```typescript
+     export type StoreRef =
+       | { store: "steam"; appId: number }
+       | { store: "epic"; namespace: string; offerId: string; slug?: string }
+       | { store: "gog"; productId: string };
+     ```
+   - Mở rộng `GameSummary`: Bổ sung `storeRefs?: StoreRef[]`. Giữ `steamAppId?: number` đánh dấu `@deprecated` để tương thích ngược hoàn toàn với các consumers cũ.
+2. **Resolver Ownership Steam an toàn**:
+   - `resolveGameSteamAppId`: Ưu tiên đọc `steamAppId` hợp lệ (uint32 > 0). Nếu không có, tìm kiếm trong `storeRefs` phần tử `{ store: "steam", appId }`.
+   - Với game độc quyền Epic (chỉ có storeRefs Epic): Resolver trả về `undefined` $\rightarrow$ Tri-state ownership trả về `"unknown"` $\rightarrow$ Không bị ẩn bởi filter "Hide Owned Games on Steam", không gây false-negative "not_owned".
+
+---
+
+## 3. EPIC GAMES STORE FREE GAMES PROMOTIONS ADAPTER
+Tệp: `src/integrations/content/epic-free-games-mapper.ts`
+
+1. **Endpoint nguồn**: API công khai `https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US`.
+2. **Logic trích xuất cửa sổ khuyến mãi**:
+   - Duyệt `promotions.promotionalOffers.promotionalOffers`.
+   - Xác thực cửa sổ thời gian: Bắt buộc `startDate <= now < endDate` (ISO parsed).
+   - Kiểm tra điều kiện Free: Epic dùng quy ước `discountPercentage === 0` (nghĩa là người dùng trả 0% giá gốc = giảm 100%) hoặc `totalPrice.discountPrice === 0`.
+   - Phân loại: Gắn `offerType: "free_to_keep"` kèm `claimEndsAt: endDateIso`.
+3. **Lọc sạch Add-ons / DLC**:
+   - Bỏ qua các item có `offerType === "ADD_ON"` hoặc `"IN_GAME_PURCHASE"`.
+4. **Định danh duy nhất không xung đột**:
+   - `externalId`: `epic:namespace:<ns>:offer:<offerId>:market:<market>:end:<endDateIso>`. Việc đính kèm `endDateIso` đảm bảo nếu cùng một game được tặng lại trong đợt khác trong tương lai, record sẽ không ghi đè mất lịch sử khuyến mãi trước đó.
+5. **Slug & Store URL**:
+   - Trích xuất slug từ `catalogNs.mappings`, `productSlug`, hoặc `urlSlug` để tạo link mở trực tiếp store page Epic.
+
+---
+
+## CÂU HỎI THAM VẤN DÀNH CHO SY06:
+1. Thiết kế wrapper `dispatch_ingestion_action` và collector `collect_pg_net_dispatch_outcomes` đã triệt để xử lý rủi ro mất mát dữ liệu của `pg_net` (vốn là unlogged table) chưa?
+2. Việc phân định `storeRefs` dạng discriminated union có đảm bảo tương thích ngược 100% với hệ thống Steam Sync hiện tại không? Có rủi ro nào khi hiển thị badge trên `/free` không?
+3. Trong Epic mapper, quy ước `discountPercentage === 0` có nguy cơ bắt nhầm các game trả phí không? Quy ước `externalId` có đủ chống va chạm giữa các market không?
+4. Đánh giá về kế hoạch chia PR: Có nên tách thành 2 PR (PR A: Canary Scheduler + StoreRef; PR B: Epic Free Games Adapter) hay giữ chung một gói hoàn chỉnh?
