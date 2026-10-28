@@ -1,5 +1,5 @@
 export const STEAM_FEATURED_URL =
-  "https://store.steampowered.com/api/featuredcategories/?l=english";
+  "https://store.steampowered.com/api/featuredcategories/?l=english&cc=us";
 export const EPIC_FREE_GAMES_URL =
   "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US";
 
@@ -52,12 +52,7 @@ export type IngestDeps = {
     status: "completed" | "failed",
     stats: { synced: number; dropped: number; total: number; error?: string },
   ) => Promise<boolean>;
-  linkDispatch?: (
-    dispatchId: string,
-    runId?: string,
-    httpStatus?: number,
-    outcome?: string,
-  ) => Promise<boolean>;
+
   upsertItem: (
     runId: string,
     kind: "releases" | "deals" | "news",
@@ -125,69 +120,101 @@ function extractBearer(req: Request): string | null {
   return match ? (match[1]?.trim() ?? null) : null;
 }
 
+function object(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+async function fetchJson(url: string): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "GamePulse-Ingest/1.0", Accept: "application/json" },
+      signal: controller.signal,
+      redirect: "error",
+    });
+    if (!response.ok) throw new Error(`upstream_http_${response.status}`);
+    if (!response.headers.get("content-type")?.includes("application/json") || !response.body) {
+      throw new Error("upstream_schema_error");
+    }
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        size += chunk.value.byteLength;
+        if (size > 1_000_000) throw new Error("upstream_body_too_large");
+        chunks.push(chunk.value);
+      }
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function items(value: unknown): unknown[] {
+  if (!Array.isArray(value) || value.length > 200 || value.some((x) => !object(x))) {
+    throw new Error("upstream_schema_error");
+  }
+  return value;
+}
+
 export async function fetchLiveSteamFeatured(): Promise<RawSteamApp[]> {
-  const res = await fetch(STEAM_FEATURED_URL, {
-    headers: {
-      "User-Agent": "GamePulse-Ingest/1.0",
-      Accept: "application/json",
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`steam_fetch_failed: ${res.status}`);
-  }
-  const json = (await res.json()) as { coming_soon?: { items?: RawSteamApp[] } };
-  return json?.coming_soon?.items ?? [];
+  const result = object(await fetchJson(STEAM_FEATURED_URL));
+  return items(object(result?.["coming_soon"])?.["items"]) as RawSteamApp[];
 }
-
 export async function fetchLiveSteamSpecials(): Promise<unknown[]> {
-  const res = await fetch(STEAM_FEATURED_URL, {
-    headers: {
-      "User-Agent": "GamePulse-Ingest/1.0",
-      Accept: "application/json",
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`steam_specials_fetch_failed: ${res.status}`);
-  }
-  const json = (await res.json()) as { specials?: { items?: unknown[] } };
-  return json?.specials?.items ?? [];
+  const result = object(await fetchJson(STEAM_FEATURED_URL));
+  return items(object(result?.["specials"])?.["items"]);
 }
-
 export async function fetchLiveSteamNews(appId: number): Promise<unknown[]> {
-  const url = `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${appId}&count=10&maxlength=500&format=json`;
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "GamePulse-Ingest/1.0",
-      Accept: "application/json",
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`steam_news_fetch_failed: ${res.status}`);
-  }
-  const json = (await res.json()) as { appnews?: { newsitems?: unknown[] } };
-  return json?.appnews?.newsitems ?? [];
+  const result = object(
+    await fetchJson(
+      `https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=${appId}&count=10&maxlength=500&format=json`,
+    ),
+  );
+  return items(object(result?.["appnews"])?.["newsitems"]);
+}
+export async function fetchLiveEpicFreeGames(): Promise<unknown[]> {
+  const result = object(await fetchJson(EPIC_FREE_GAMES_URL));
+  return items(
+    object(object(object(result?.["data"])?.["Catalog"])?.["searchStore"])?.["elements"],
+  );
 }
 
-export async function fetchLiveEpicFreeGames(): Promise<unknown[]> {
-  const res = await fetch(EPIC_FREE_GAMES_URL, {
-    headers: {
-      "User-Agent": "GamePulse-Ingest/1.0",
-      Accept: "application/json",
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`epic_fetch_failed: ${res.status}`);
-  }
-  const json = (await res.json()) as {
-    data?: {
-      Catalog?: {
-        searchStore?: {
-          elements?: unknown[];
-        };
-      };
-    };
-  };
-  return json?.data?.Catalog?.searchStore?.elements ?? [];
+function writeFailure(
+  error: unknown,
+  action: string,
+  synced: number,
+  dropped: number,
+  total: number,
+): Response {
+  const code = object(error)?.["code"];
+  const message = error instanceof Error ? error.message : object(error)?.["message"];
+  const isLease =
+    (code === "55000" || error instanceof Error) &&
+    typeof message === "string" &&
+    /^(lease_required|lease_expired|lease_not_running|lease_not_owner|action_disabled|action_kind_mismatch)(:|$)/.test(
+      message,
+    );
+  return jsonResponse(
+    { error: isLease ? "lease_lost" : "write_failed", action, synced, dropped, total },
+    isLease ? 409 : 503,
+  );
 }
 
 export async function handleContentIngest(req: Request, deps: IngestDeps): Promise<Response> {
@@ -200,6 +227,9 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
   }
 
   // Authentication check: strictly require service_role authorization
+  if (!deps.serviceRoleKey || !deps.serviceRoleKey.trim()) {
+    return jsonResponse({ error: "service_role_key_missing" }, 503);
+  }
   const token = extractBearer(req);
   if (!token || token !== deps.serviceRoleKey) {
     return jsonResponse({ error: "unauthorized" }, 401);
@@ -212,7 +242,7 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
     return jsonResponse({ error: "invalid_json" }, 400);
   }
 
-  if (!body || typeof body !== "object") {
+  if (!object(body)) {
     return jsonResponse({ error: "invalid_body" }, 400);
   }
 
@@ -226,87 +256,84 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
   const action = payload.action ?? "sync_steam_releases";
   const now = deps.now ? deps.now() : new Date();
 
+  if (
+    (payload.trigger !== undefined && payload.trigger !== "manual") ||
+    payload.dispatchId !== undefined
+  ) {
+    return jsonResponse({ error: "scheduler_not_ready" }, 409);
+  }
+  if (action === "ingest_batch") return jsonResponse({ error: "batch_disabled" }, 409);
+  const started = performance.now();
+  const writeItem: IngestDeps["upsertItem"] = async (...args) => {
+    if (performance.now() - started > 90000) throw new Error("run_deadline");
+    return deps.upsertItem(...args);
+  };
+
   async function withIngestLease(
     actionName: string,
     executeFn: (runId: string) => Promise<Response>,
   ): Promise<Response> {
-    const trigger = payload.trigger ?? "manual";
-    const dispatchId =
-      typeof payload.dispatchId === "string" && payload.dispatchId.trim()
-        ? payload.dispatchId.trim()
-        : undefined;
-    let runId: string;
-
-    if (deps.claimRun) {
-      const claim = await deps.claimRun(actionName, trigger);
-      if (!claim.claimed) {
-        const reason = claim.reason ?? "lease_held";
-        let status = 409;
-        if (reason === "action_disabled") status = 409;
-        else if (reason === "cooldown_active") status = 429;
-
-        if (dispatchId && deps.linkDispatch) {
-          await deps.linkDispatch(dispatchId, undefined, status, reason).catch(() => false);
-        }
-        return jsonResponse({ error: reason, action: actionName, reason }, status);
-      }
-      runId = claim.runId ?? "00000000-0000-0000-0000-000000000000";
-    } else {
-      runId = "00000000-0000-0000-0000-000000000000";
-    }
-
-    if (dispatchId && deps.linkDispatch) {
-      await deps.linkDispatch(dispatchId, runId, 200, "running").catch(() => false);
-    }
-
+    if (!deps.claimRun || !deps.finalizeRun)
+      return jsonResponse({ error: "lease_unavailable" }, 503);
+    let claim: Awaited<ReturnType<NonNullable<IngestDeps["claimRun"]>>>;
     try {
-      const res = await executeFn(runId);
-      if (deps.finalizeRun && deps.claimRun) {
-        if (res.ok) {
-          try {
-            const clone = res.clone();
-            const data = (await clone.json()) as {
-              synced?: number;
-              dropped?: number;
-              total?: number;
-            };
-            await deps.finalizeRun(runId, "completed", {
-              synced: data.synced ?? 0,
-              dropped: data.dropped ?? 0,
-              total: data.total ?? 0,
-            });
-          } catch {
-            await deps.finalizeRun(runId, "completed", { synced: 0, dropped: 0, total: 0 });
-          }
-        } else {
-          await deps.finalizeRun(runId, "failed", {
-            synced: 0,
-            dropped: 0,
-            total: 0,
-            error: `http_status_${res.status}`,
-          });
-        }
-      }
-      if (dispatchId && deps.linkDispatch) {
-        await deps
-          .linkDispatch(dispatchId, runId, res.status, res.ok ? "completed" : "failed")
-          .catch(() => false);
-      }
-      return res;
-    } catch (err) {
-      if (deps.finalizeRun && deps.claimRun) {
-        await deps.finalizeRun(runId, "failed", {
-          synced: 0,
-          dropped: 0,
-          total: 0,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-      if (dispatchId && deps.linkDispatch) {
-        await deps.linkDispatch(dispatchId, runId, 500, "failed").catch(() => false);
-      }
-      throw err;
+      claim = await deps.claimRun(actionName, "manual");
+    } catch {
+      return jsonResponse({ error: "claim_unavailable" }, 503);
     }
+    if (!claim.claimed) {
+      const reason = [
+        "lease_held",
+        "action_disabled",
+        "cooldown_active",
+        "missing_config",
+        "scheduler_not_ready",
+      ].includes(claim.reason ?? "")
+        ? claim.reason
+        : "lease_held";
+      return jsonResponse(
+        { error: reason, action: actionName, reason },
+        reason === "cooldown_active" ? 429 : 409,
+      );
+    }
+    const runId = claim.runId;
+    if (
+      !runId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(runId) ||
+      runId === "00000000-0000-0000-0000-000000000000"
+    )
+      return jsonResponse({ error: "invalid_claim" }, 503);
+    let res: Response;
+    try {
+      res = await executeFn(runId);
+    } catch {
+      res = jsonResponse({ error: "execution_failed" }, 500);
+    }
+    let data: Record<string, unknown> = {};
+    try {
+      data = object(await res.clone().json()) ?? {};
+    } catch {
+      data = {};
+    }
+    const count = (name: string) => {
+      const value = data[name];
+      return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+    };
+    const stats = {
+      synced: count("synced"),
+      dropped: count("dropped"),
+      total: count("total"),
+      ...(res.ok ? {} : { error: `http_status_${res.status}` }),
+    };
+    try {
+      const finalized = await deps.finalizeRun(runId, res.ok ? "completed" : "failed", stats);
+      if (!finalized && res.status !== 409)
+        return jsonResponse({ error: "finalization_unconfirmed", runId }, 503);
+    } catch {
+      if (res.status !== 409)
+        return jsonResponse({ error: "finalization_unconfirmed", runId }, 503);
+    }
+    return jsonResponse({ ...data, runId }, res.status);
   }
 
   if (action === "sync_steam_releases") {
@@ -320,11 +347,8 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
       let apps: RawSteamApp[] = [];
       try {
         apps = await fetcher();
-      } catch (err) {
-        return jsonResponse(
-          { error: "steam_fetch_error", details: err instanceof Error ? err.message : String(err) },
-          502,
-        );
+      } catch {
+        return jsonResponse({ error: "steam_fetch_error" }, 502);
       }
 
       let synced = 0;
@@ -332,7 +356,15 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
       const errors: string[] = [];
 
       for (const app of apps) {
-        const entry = mapper(app);
+        let entry: ReturnType<NonNullable<IngestDeps["mapSteamApp"]>>;
+        try {
+          entry = mapper(app);
+        } catch {
+          return jsonResponse(
+            { error: "mapper_failed", action, synced, dropped, total: apps.length },
+            500,
+          );
+        }
         if (!entry) {
           dropped++;
           continue;
@@ -341,15 +373,10 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
         // External identity with namespace per Notion Sy06 review: "steam:app:<id>"
         const externalId = `steam:app:${app.id}`;
         try {
-          await deps.upsertItem(activeRunId, "releases", externalId, now.toISOString(), entry);
+          await writeItem(activeRunId, "releases", externalId, now.toISOString(), entry);
           synced++;
         } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          if (errMsg.includes("lease_")) {
-            return jsonResponse({ error: "lease_lost", action, details: errMsg }, 409);
-          }
-          dropped++;
-          errors.push(`upsert_failed:${app.id}:${errMsg}`);
+          return writeFailure(err, action, synced, dropped, apps.length);
         }
       }
 
@@ -382,7 +409,6 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
         return jsonResponse(
           {
             error: "steam_specials_fetch_error",
-            details: err instanceof Error ? err.message : String(err),
           },
           502,
         );
@@ -393,13 +419,21 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
       const errors: string[] = [];
 
       for (const item of specials) {
-        const mapped = mapper(item, now);
+        let mapped: ReturnType<NonNullable<IngestDeps["mapSteamDeal"]>>;
+        try {
+          mapped = mapper(item, now);
+        } catch {
+          return jsonResponse(
+            { error: "mapper_failed", action, synced, dropped, total: specials.length },
+            500,
+          );
+        }
         if (!mapped) {
           dropped++;
           continue;
         }
         try {
-          await deps.upsertItem(
+          await writeItem(
             activeRunId,
             "deals",
             mapped.externalId,
@@ -415,12 +449,7 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
           );
           synced++;
         } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          if (errMsg.includes("lease_")) {
-            return jsonResponse({ error: "lease_lost", action, details: errMsg }, 409);
-          }
-          dropped++;
-          errors.push(`upsert_failed:${mapped.externalId}:${errMsg}`);
+          return writeFailure(err, action, synced, dropped, specials.length);
         }
       }
 
@@ -456,7 +485,6 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
         return jsonResponse(
           {
             error: "steam_news_fetch_error",
-            details: err instanceof Error ? err.message : String(err),
           },
           502,
         );
@@ -467,13 +495,21 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
       const errors: string[] = [];
 
       for (const item of newsItems) {
-        const mapped = mapper(item);
+        let mapped: ReturnType<NonNullable<IngestDeps["mapSteamNews"]>>;
+        try {
+          mapped = mapper(item);
+        } catch {
+          return jsonResponse(
+            { error: "mapper_failed", action, synced, dropped, total: newsItems.length },
+            500,
+          );
+        }
         if (!mapped) {
           dropped++;
           continue;
         }
         try {
-          await deps.upsertItem(
+          await writeItem(
             activeRunId,
             "news",
             mapped.externalId,
@@ -482,12 +518,7 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
           );
           synced++;
         } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          if (errMsg.includes("lease_")) {
-            return jsonResponse({ error: "lease_lost", action, details: errMsg }, 409);
-          }
-          dropped++;
-          errors.push(`upsert_failed:${mapped.externalId}:${errMsg}`);
+          return writeFailure(err, action, synced, dropped, newsItems.length);
         }
       }
 
@@ -521,7 +552,6 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
         return jsonResponse(
           {
             error: "epic_fetch_error",
-            details: err instanceof Error ? err.message : String(err),
           },
           502,
         );
@@ -532,13 +562,21 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
       const errors: string[] = [];
 
       for (const item of elements) {
-        const mapped = mapper(item, now);
+        let mapped: ReturnType<NonNullable<IngestDeps["mapEpicDeal"]>>;
+        try {
+          mapped = mapper(item, now);
+        } catch {
+          return jsonResponse(
+            { error: "mapper_failed", action, synced, dropped, total: elements.length },
+            500,
+          );
+        }
         if (!mapped) {
           dropped++;
           continue;
         }
         try {
-          await deps.upsertItem(
+          await writeItem(
             activeRunId,
             "deals",
             mapped.externalId,
@@ -554,12 +592,7 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
           );
           synced++;
         } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          if (errMsg.includes("lease_")) {
-            return jsonResponse({ error: "lease_lost", action, details: errMsg }, 409);
-          }
-          dropped++;
-          errors.push(`upsert_failed:${mapped.externalId}:${errMsg}`);
+          return writeFailure(err, action, synced, dropped, elements.length);
         }
       }
 
@@ -571,57 +604,6 @@ export async function handleContentIngest(req: Request, deps: IngestDeps): Promi
           dropped,
           total: elements.length,
           errors: errors.slice(0, 10),
-        },
-        200,
-      );
-    });
-  }
-
-  if (action === "ingest_batch") {
-    return withIngestLease(action, async (activeRunId) => {
-      const rawItems = Array.isArray(payload.items) ? payload.items : [];
-      let synced = 0;
-      let dropped = 0;
-
-      for (const raw of rawItems) {
-        if (!raw || typeof raw !== "object") {
-          dropped++;
-          continue;
-        }
-        const item = raw as {
-          kind?: "releases" | "deals" | "news";
-          externalId?: string;
-          payload?: unknown;
-        };
-        if (!item.kind || !item.externalId || !item.payload) {
-          dropped++;
-          continue;
-        }
-        try {
-          await deps.upsertItem(
-            activeRunId,
-            item.kind,
-            item.externalId,
-            now.toISOString(),
-            item.payload,
-          );
-          synced++;
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          if (errMsg.includes("lease_")) {
-            return jsonResponse({ error: "lease_lost", action, details: errMsg }, 409);
-          }
-          dropped++;
-        }
-      }
-
-      return jsonResponse(
-        {
-          ok: true,
-          action: "ingest_batch",
-          synced,
-          dropped,
-          total: rawItems.length,
         },
         200,
       );

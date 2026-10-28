@@ -1,18 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { handleContentIngest } from "./handler.ts";
-import { mapSteamAppToRadarEntry } from "../../src/integrations/content/steam-release-mapper.ts";
+import { mapSteamAppToRadarEntry } from "../../../src/integrations/content/steam-release-mapper.ts";
 import {
   mapSteamSpecialToDeal,
   type RawSteamSpecial,
-} from "../../src/integrations/content/steam-deals-mapper.ts";
+} from "../../../src/integrations/content/steam-deals-mapper.ts";
 import {
   mapSteamNewsToArticle,
   type RawSteamNewsItem,
-} from "../../src/integrations/content/steam-news-mapper.ts";
-import {
-  mapEpicFreeGameToDeal,
-  type RawEpicFreeGameElement,
-} from "../../src/integrations/content/epic-free-games-mapper.ts";
+} from "../../../src/integrations/content/steam-news-mapper.ts";
+import { mapEpicFreeGameToDeal } from "../../../src/integrations/content/epic-free-games-mapper.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -50,20 +47,11 @@ Deno.serve((req) =>
       if (error) throw error;
       return Boolean(data);
     },
-    linkDispatch: async (dispatchId, runId, httpStatus, outcome) => {
-      const { data, error } = await supabase.rpc("link_dispatch_to_run", {
-        p_dispatch_id: dispatchId,
-        p_run_id: runId ?? null,
-        p_http_status: httpStatus ?? null,
-        p_outcome: outcome ?? null,
-      });
-      if (error) throw error;
-      return Boolean(data);
-    },
+
     mapSteamApp: mapSteamAppToRadarEntry,
-    mapSteamDeal: (special) => mapSteamSpecialToDeal(special as unknown as RawSteamSpecial),
+    mapSteamDeal: (special, now) => mapSteamSpecialToDeal(special as RawSteamSpecial, "us", now),
     mapSteamNews: (item) => mapSteamNewsToArticle(item as unknown as RawSteamNewsItem),
-    mapEpicDeal: (elem) => mapEpicFreeGameToDeal(elem as unknown as RawEpicFreeGameElement),
+    mapEpicDeal: (elem, now) => mapEpicFreeGameToDeal(elem, "us", now),
     upsertItem: async (
       runId,
       kind,

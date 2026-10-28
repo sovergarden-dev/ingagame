@@ -59,182 +59,174 @@ export interface MappedEpicOffer {
   classificationStatus: ClassificationStatus;
 }
 
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function text(value: unknown, limit = 256): string | null {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= limit
+    ? value.trim()
+    : null;
+}
+
+function instant(value: unknown): number | null {
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+  )
+    return null;
+  const result = Date.parse(value);
+  return Number.isFinite(result) ? result : null;
+}
+
 export function buildEpicPromotionExternalId(
   namespace: string,
   offerId: string,
-  endDateIso: string,
+  startDateIso: string,
   market = "us",
 ): string {
-  return `epic:namespace:${namespace.trim()}:offer:${offerId.trim()}:market:${market.toLowerCase()}:end:${endDateIso}`;
+  return `epic:v2:namespace:${encodeURIComponent(namespace.trim())}:offer:${encodeURIComponent(offerId.trim())}:market:${market.toLowerCase()}:start:${new Date(startDateIso).toISOString()}`;
 }
 
-function resolveEpicCoverUrl(images?: RawEpicKeyImage[]): string | undefined {
-  if (!Array.isArray(images) || images.length === 0) return undefined;
-  const preferredTypes = ["OfferImageWide", "DieselStoreFrontWide", "Thumbnail", "OfferImageTall"];
-  for (const t of preferredTypes) {
-    const match = images.find((img) => img.type === t && img.url?.trim());
-    if (match?.url) return match.url.trim();
+function resolveSlug(element: Record<string, unknown>): string | null {
+  const catalog = record(element["catalogNs"]);
+  const mappings = catalog?.["mappings"];
+  const candidates: unknown[] = [];
+  if (Array.isArray(mappings)) {
+    for (const value of mappings.slice(0, 20)) {
+      const mapping = record(value);
+      if (mapping?.["pageType"] === "productHome") candidates.push(mapping["pageSlug"]);
+    }
   }
-  const firstValid = images.find((img) => img.url?.trim());
-  return firstValid?.url?.trim();
+  candidates.push(element["productSlug"]);
+  for (const candidate of candidates) {
+    const slug = text(candidate)?.replace(/\/home$/, "");
+    if (slug && /^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$/.test(slug)) return slug;
+  }
+  return null;
 }
 
-function resolveEpicStoreSlug(el: RawEpicFreeGameElement): string | undefined {
-  const mappedSlug = el.catalogNs?.mappings?.find((m) => m.pageSlug?.trim())?.pageSlug?.trim();
-  if (mappedSlug) return mappedSlug;
-  if (el.productSlug?.trim()) {
-    return el.productSlug.trim().replace(/\/home$/, "");
+function resolveCover(images: unknown): string | null {
+  if (!Array.isArray(images)) return null;
+  for (const type of ["OfferImageWide", "DieselStoreFrontWide", "Thumbnail", "OfferImageTall"]) {
+    for (const value of images.slice(0, 30)) {
+      const image = record(value);
+      if (image?.["type"] !== type || typeof image["url"] !== "string") continue;
+      try {
+        const url = new URL(image["url"]);
+        if (
+          url.protocol === "https:" &&
+          !url.username &&
+          !url.password &&
+          ["cdn1.epicgames.com", "cdn2.unrealengine.com"].includes(url.hostname)
+        )
+          return url.href;
+      } catch {
+        continue;
+      }
+    }
   }
-  if (el.urlSlug?.trim() && !/^[0-9a-f]{32}$/i.test(el.urlSlug.trim())) {
-    return el.urlSlug.trim();
-  }
-  return undefined;
+  return null;
 }
 
-/**
- * Maps a raw Epic Games Store freeGamesPromotions element to a verified Inga Deal record.
- * Adheres strictly to Notion Sy06 multi-provider contract:
- * - Only accepts active promotional offers where discountPercentage === 0 (Epic's convention for 0% of original price = Free)
- *   OR totalPrice.discountPrice === 0 with an active promotional window.
- * - Requires explicit startDate <= now < endDate.
- * - Excludes DLC/Add-ons unless base game or unspecified standard game offer.
- * - Populates storeRefs with `{ store: "epic", namespace, offerId }` and leaves steamAppId undefined.
- */
+/** Conservative US/USD paid-to-free base-game promotions only. No inferred OS or cross-store identity. */
 export function mapEpicFreeGameToDeal(
-  element: RawEpicFreeGameElement,
+  input: unknown,
   market = "us",
   now: Date = new Date(),
 ): MappedEpicOffer | null {
+  const element = record(input);
+  if (!element || market.toLowerCase() !== "us" || !Number.isFinite(now.getTime())) return null;
+  const id = text(element["id"]);
+  const namespace = text(element["namespace"]);
+  const title = text(element["title"], 512);
+  if (!id || !namespace || !title || element["offerType"] !== "BASE_GAME") return null;
+  const price = record(record(element["price"])?.["totalPrice"]);
+  const original = price?.["originalPrice"];
   if (
-    !element ||
-    typeof element.id !== "string" ||
-    !element.id.trim() ||
-    typeof element.namespace !== "string" ||
-    !element.namespace.trim() ||
-    typeof element.title !== "string" ||
-    !element.title.trim()
-  ) {
+    typeof original !== "number" ||
+    !Number.isSafeInteger(original) ||
+    original <= 0 ||
+    price?.["discountPrice"] !== 0 ||
+    price["currencyCode"] !== "USD"
+  )
     return null;
-  }
-
-  // Filter out pure add-ons or non-game items if explicitly marked as ADD_ON
-  if (element.offerType === "ADD_ON" || element.offerType === "IN_GAME_PURCHASE") {
-    return null;
-  }
-
-  const promoGroups = element.promotions?.promotionalOffers;
-  if (!Array.isArray(promoGroups) || promoGroups.length === 0) {
-    return null;
-  }
-
-  const nowMs = now.getTime();
-  let activeWindow: { startIso: string; endIso: string } | null = null;
-
-  for (const group of promoGroups) {
-    const offers = group.promotionalOffers;
-    if (!Array.isArray(offers)) continue;
-    for (const offer of offers) {
-      if (!offer.startDate || !offer.endDate) continue;
-      const startMs = Date.parse(offer.startDate);
-      const endMs = Date.parse(offer.endDate);
-      if (Number.isNaN(startMs) || Number.isNaN(endMs)) continue;
-      if (startMs <= nowMs && nowMs < endMs) {
-        // In Epic's API, discountPercentage: 0 inside promotionalOffers means customer pays 0% of original price (100% off)
-        const discountPct = offer.discountSetting?.discountPercentage;
-        const isFreePromo = discountPct === 0 || element.price?.totalPrice?.discountPrice === 0;
-        if (isFreePromo) {
-          activeWindow = {
-            startIso: new Date(startMs).toISOString(),
-            endIso: new Date(endMs).toISOString(),
-          };
-          break;
-        }
+  const groups = record(element["promotions"])?.["promotionalOffers"];
+  if (!Array.isArray(groups) || groups.length > 20) return null;
+  const windows = new Map<string, { start: number; end: number }>();
+  for (const value of groups) {
+    const offers = record(value)?.["promotionalOffers"];
+    if (!Array.isArray(offers) || offers.length > 20) return null;
+    for (const raw of offers) {
+      const offer = record(raw);
+      if (!offer) return null;
+      const start = instant(offer["startDate"]);
+      const end = instant(offer["endDate"]);
+      const discount = record(offer["discountSetting"]);
+      if (start === null || end === null || start >= end) return null;
+      if (
+        start <= now.getTime() &&
+        now.getTime() < end &&
+        discount?.["discountType"] === "PERCENTAGE" &&
+        discount["discountPercentage"] === 0
+      ) {
+        windows.set(`${start}:${end}`, { start, end });
       }
     }
-    if (activeWindow) break;
   }
-
-  if (!activeWindow) {
-    return null;
-  }
-
-  const totalPrice = element.price?.totalPrice;
-  const origCents =
-    typeof totalPrice?.originalPrice === "number" && totalPrice.originalPrice >= 0
-      ? totalPrice.originalPrice
-      : 0;
-  const currency = (totalPrice?.currencyCode?.trim() || "USD").toUpperCase();
-  const priceBase = Number((origCents / 100).toFixed(2));
-  const priceCurrent = 0;
-
-  const slug = resolveEpicStoreSlug(element);
-  const storeUrl = slug
-    ? `https://store.epicgames.com/en-US/p/${slug}`
-    : "https://store.epicgames.com/en-US/free-games";
-
-  const coverUrl = resolveEpicCoverUrl(element.keyImages);
-  const gameId = `epic-${element.namespace.trim()}-${element.id.trim()}`;
-  const dealId = `deal-epic-${element.id.trim()}`;
+  if (windows.size !== 1) return null;
+  const window = [...windows.values()][0];
+  if (!window) return null;
+  const end = new Date(window.end).toISOString();
   const externalId = buildEpicPromotionExternalId(
-    element.namespace,
-    element.id,
-    activeWindow.endIso,
+    namespace,
+    id,
+    new Date(window.start).toISOString(),
     market,
   );
-
+  const gameId = `epic:${encodeURIComponent(namespace)}:${encodeURIComponent(id)}`;
+  const slug = resolveSlug(element);
+  const coverUrl = resolveCover(element["keyImages"]);
   const gameSummary: GameSummary = {
     id: gameId,
-    title: element.title.trim(),
+    title,
     ...(coverUrl ? { coverUrl } : {}),
-    storeRefs: [
-      {
-        store: "epic",
-        namespace: element.namespace.trim(),
-        offerId: element.id.trim(),
-        ...(slug ? { slug } : {}),
-      },
-    ],
-    platformAvailability: {
-      windows: true,
-      mac: null,
-      linux: null,
-    },
+    storeRefs: [{ store: "epic", namespace, offerId: id, ...(slug ? { slug } : {}) }],
+    platformAvailability: { windows: null, mac: null, linux: null },
     source: "epic",
     observedAt: now.toISOString(),
   };
-
-  const offerType: OfferType = "free_to_keep";
-  const classificationStatus: ClassificationStatus = "verified";
-
   const deal: Deal = {
-    id: dealId,
+    id: externalId,
     gameId,
     store: "Epic Games Store",
-    priceCurrent,
-    priceBase,
+    priceCurrent: 0,
+    priceBase: original / 100,
     discountPercent: 100,
-    currency,
-    endsAt: activeWindow.endIso,
-    claimEndsAt: activeWindow.endIso,
-    url: storeUrl,
+    currency: "USD",
+    endsAt: end,
+    claimEndsAt: end,
     gameSummary,
-    offerType,
-    classificationStatus,
+    url: slug
+      ? `https://store.epicgames.com/en-US/p/${slug}`
+      : "https://store.epicgames.com/en-US/free-games",
+    offerType: "free_to_keep",
+    classificationStatus: "verified",
   };
-
-  if (!isDealItem(deal)) {
-    return null;
-  }
-
+  if (!isDealItem(deal)) return null;
   return {
     deal,
     externalId,
-    expiresAt: activeWindow.endIso,
-    sourceFreshUntil: activeWindow.endIso,
+    expiresAt: end,
+    sourceFreshUntil: new Date(
+      Math.min(window.end, now.getTime() + 2 * 60 * 60 * 1000),
+    ).toISOString(),
     offerState: "active",
-    offerType,
-    claimEndsAt: activeWindow.endIso,
+    offerType: "free_to_keep",
+    claimEndsAt: end,
     accessEndsAt: null,
-    classificationStatus,
+    classificationStatus: "verified",
   };
 }

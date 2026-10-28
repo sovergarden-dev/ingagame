@@ -55,6 +55,8 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
   }[] = [];
   return {
     serviceRoleKey: SERVICE_KEY,
+    claimRun: async () => ({ claimed: true, runId: "11111111-1111-4111-8111-111111111111" }),
+    finalizeRun: async () => true,
     now: () => new Date("2026-10-17T10:00:00.000Z"),
     upsertItem: async (
       runId,
@@ -92,10 +94,7 @@ function mockDeps(overrides: Partial<IngestDeps> = {}): IngestDeps & {
     mapEpicDeal: (item, now) => mapEpicFreeGameToDeal(item as RawEpicFreeGameElement, "us", now),
     upserted,
     dispatchesLinked,
-    linkDispatch: async (dispatchId, runId, httpStatus, outcome) => {
-      dispatchesLinked.push({ dispatchId, runId, httpStatus, outcome });
-      return true;
-    },
+
     ...overrides,
   };
 }
@@ -221,7 +220,7 @@ describe("handleContentIngest - sync_steam_releases", () => {
 });
 
 describe("handleContentIngest - ingest_batch", () => {
-  it("ingests verified items in batch", async () => {
+  it("rejects generic batch writes while provider-scoped rollout is blocked", async () => {
     const deps = mockDeps();
     const items = [
       {
@@ -244,12 +243,9 @@ describe("handleContentIngest - ingest_batch", () => {
       deps,
     );
 
-    assert.equal(res.status, 200);
-    const json = (await res.json()) as { ok: boolean; synced: number; dropped: number };
-    assert.equal(json.ok, true);
-    assert.equal(json.synced, 2);
-    assert.equal(json.dropped, 0);
-    assert.equal(deps.upserted.length, 2);
+    assert.equal(res.status, 409);
+    assert.equal((await res.json()).error, "batch_disabled");
+    assert.equal(deps.upserted.length, 0);
   });
 });
 
@@ -380,7 +376,7 @@ describe("handleContentIngest - sync_epic_free_games", () => {
               {
                 startDate: "2026-10-15T00:00:00.000Z",
                 endDate: "2026-10-25T00:00:00.000Z",
-                discountSetting: { discountPercentage: 0 },
+                discountSetting: { discountType: "PERCENTAGE", discountPercentage: 0 },
               },
             ],
           },
@@ -399,7 +395,7 @@ describe("handleContentIngest - sync_epic_free_games", () => {
               {
                 startDate: "2026-11-01T00:00:00.000Z",
                 endDate: "2026-11-08T00:00:00.000Z",
-                discountSetting: { discountPercentage: 0 },
+                discountSetting: { discountType: "PERCENTAGE", discountPercentage: 0 },
               },
             ],
           },
@@ -411,7 +407,7 @@ describe("handleContentIngest - sync_epic_free_games", () => {
   it("ingests active free Epic promotions into deals with storeRefs and free_to_keep", async () => {
     const deps = mockDeps({
       fetchEpicFreeGames: async () => sampleEpicElements,
-      claimRun: async () => ({ claimed: true, runId: "epic-run-1" }),
+      claimRun: async () => ({ claimed: true, runId: "11111111-1111-4111-8111-111111111111" }),
     });
 
     const res = await handleContentIngest(
@@ -436,7 +432,7 @@ describe("handleContentIngest - sync_epic_free_games", () => {
 
     assert.equal(deps.upserted.length, 1);
     assert.equal(deps.upserted[0]?.kind, "deals");
-    assert.equal(deps.upserted[0]?.runId, "epic-run-1");
+    assert.equal(deps.upserted[0]?.runId, "11111111-1111-4111-8111-111111111111");
     assert.equal(deps.upserted[0]?.offerType, "free_to_keep");
   });
 
@@ -501,7 +497,7 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
 
     const deps = mockDeps({
       fetchSteamSpecials: async () => sample,
-      claimRun: async () => ({ claimed: true, runId: "run-123" }),
+      claimRun: async () => ({ claimed: true, runId: "11111111-1111-4111-8111-111111111111" }),
       finalizeRun: async (_runId, status, stats) => {
         finalizedStatus = status;
         finalizedStats = stats;
@@ -530,7 +526,7 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
       fetchSteamSpecials: async () => {
         throw new Error("steam_down_503");
       },
-      claimRun: async () => ({ claimed: true, runId: "run-456" }),
+      claimRun: async () => ({ claimed: true, runId: "11111111-1111-4111-8111-111111111111" }),
       finalizeRun: async (_runId, status, stats) => {
         finalizedStatus = status;
         finalizedError = stats.error;
@@ -606,7 +602,7 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
 
     const deps = mockDeps({
       fetchSteamSpecials: async () => sample,
-      claimRun: async () => ({ claimed: true, runId: "run-fenced-999" }),
+      claimRun: async () => ({ claimed: true, runId: "11111111-1111-4111-8111-111111111111" }),
     });
 
     const res = await handleContentIngest(
@@ -619,7 +615,7 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
 
     assert.equal(res.status, 200);
     assert.equal(deps.upserted.length, 1);
-    assert.equal(deps.upserted[0]?.runId, "run-fenced-999");
+    assert.equal(deps.upserted[0]?.runId, "11111111-1111-4111-8111-111111111111");
   });
 
   it("aborts sync loop and returns 409 when upsertItem throws lease_lost", async () => {
@@ -630,7 +626,7 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
     let calls = 0;
     const deps = mockDeps({
       fetchSteamSpecials: async () => sample,
-      claimRun: async () => ({ claimed: true, runId: "run-stale" }),
+      claimRun: async () => ({ claimed: true, runId: "11111111-1111-4111-8111-111111111111" }),
       upsertItem: async () => {
         calls++;
         throw new Error("lease_expired: lease for run run-stale expired");
@@ -651,9 +647,9 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
     assert.equal(calls, 1);
   });
 
-  it("ingest_batch passes active runId to upsertItem", async () => {
+  it("ingest_batch cannot bypass a provider kill switch", async () => {
     const deps = mockDeps({
-      claimRun: async () => ({ claimed: true, runId: "batch-run-777" }),
+      claimRun: async () => ({ claimed: true, runId: "11111111-1111-4111-8111-111111111111" }),
     });
     const items = [{ kind: "releases" as const, externalId: "custom:1", payload: { test: true } }];
     const res = await handleContentIngest(
@@ -663,11 +659,11 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
       }),
       deps,
     );
-    assert.equal(res.status, 200);
-    assert.equal(deps.upserted[0]?.runId, "batch-run-777");
+    assert.equal(res.status, 409);
+    assert.equal(deps.upserted.length, 0);
   });
 
-  it("correlates dispatchId with runId on running and completed execution", async () => {
+  it("rejects dispatch payloads until atomic dispatch acceptance is enabled", async () => {
     const sample = [
       {
         id: 100,
@@ -680,7 +676,7 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
 
     const deps = mockDeps({
       fetchSteamSpecials: async () => sample,
-      claimRun: async () => ({ claimed: true, runId: "run-dispatch-1" }),
+      claimRun: async () => ({ claimed: true, runId: "11111111-1111-4111-8111-111111111111" }),
     });
 
     const res = await handleContentIngest(
@@ -691,19 +687,13 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
       deps,
     );
 
-    assert.equal(res.status, 200);
-    assert.equal(deps.dispatchesLinked.length, 2);
-    assert.equal(deps.dispatchesLinked[0]?.dispatchId, "disp-101");
-    assert.equal(deps.dispatchesLinked[0]?.runId, "run-dispatch-1");
-    assert.equal(deps.dispatchesLinked[0]?.outcome, "running");
-
-    assert.equal(deps.dispatchesLinked[1]?.dispatchId, "disp-101");
-    assert.equal(deps.dispatchesLinked[1]?.runId, "run-dispatch-1");
-    assert.equal(deps.dispatchesLinked[1]?.httpStatus, 200);
-    assert.equal(deps.dispatchesLinked[1]?.outcome, "completed");
+    assert.equal(res.status, 409);
+    assert.equal((await res.json()).error, "scheduler_not_ready");
+    assert.equal(deps.dispatchesLinked.length, 0);
+    assert.equal(deps.upserted.length, 0);
   });
 
-  it("correlates dispatchId with rejection status on lease conflict", async () => {
+  it("does not manufacture dispatch transport observations on rejection", async () => {
     const deps = mockDeps({
       claimRun: async () => ({ claimed: false, reason: "lease_held" }),
     });
@@ -717,9 +707,7 @@ describe("handleContentIngest - Concurrency Leases & Audit", () => {
     );
 
     assert.equal(res.status, 409);
-    assert.equal(deps.dispatchesLinked.length, 1);
-    assert.equal(deps.dispatchesLinked[0]?.dispatchId, "disp-conflict");
-    assert.equal(deps.dispatchesLinked[0]?.httpStatus, 409);
-    assert.equal(deps.dispatchesLinked[0]?.outcome, "lease_held");
+    assert.equal(deps.dispatchesLinked.length, 0);
+    assert.equal((await res.json()).error, "scheduler_not_ready");
   });
 });

@@ -97,7 +97,7 @@ export function devMockIfUnrenderable<T>(
 }
 
 function readViteEnv(): ViteEnvSlice {
-  return (import.meta.env ?? {}) as ViteEnvSlice;
+  return (import.meta as ImportMeta & { env?: ViteEnvSlice }).env ?? {};
 }
 
 export async function fetchContentKind<T>(
@@ -404,7 +404,7 @@ function withSelectedItems<T>(
 }
 
 async function devMockItems(kind: ContentKind): Promise<unknown[]> {
-  if (!import.meta.env.DEV) return [];
+  if (!readViteEnv().DEV) return [];
   const mock = await import("@/domain/mock-data");
   if (kind === "releases") return [...mock.UPCOMING_RELEASES, ...mock.RECENTLY_RELEASED];
   if (kind === "deals") {

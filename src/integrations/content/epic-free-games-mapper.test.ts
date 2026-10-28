@@ -11,7 +11,7 @@ describe("buildEpicPromotionExternalId", () => {
   it("formats deterministic namespaced external_id per Notion Sy06", () => {
     assert.equal(
       buildEpicPromotionExternalId("epic-ns", "offer-123", "2026-10-25T15:00:00.000Z", "US"),
-      "epic:namespace:epic-ns:offer:offer-123:market:us:end:2026-10-25T15:00:00.000Z",
+      "epic:v2:namespace:epic-ns:offer:offer-123:market:us:start:2026-10-25T15:00:00.000Z",
     );
   });
 });
@@ -27,8 +27,8 @@ describe("mapEpicFreeGameToDeal", () => {
     offerType: "BASE_GAME",
     productSlug: "ghostwire-tokyo/home",
     keyImages: [
-      { type: "DieselStoreFrontWide", url: "https://example.com/gw-wide.jpg" },
-      { type: "Thumbnail", url: "https://example.com/gw-thumb.jpg" },
+      { type: "DieselStoreFrontWide", url: "https://cdn1.epicgames.com/gw-wide.jpg" },
+      { type: "Thumbnail", url: "https://cdn1.epicgames.com/gw-thumb.jpg" },
     ],
     price: {
       totalPrice: {
@@ -60,9 +60,9 @@ describe("mapEpicFreeGameToDeal", () => {
     assert.ok(res);
     assert.equal(
       res.externalId,
-      "epic:namespace:epic-ns-1:offer:epic-offer-1:market:us:end:2026-10-27T15:00:00.000Z",
+      "epic:v2:namespace:epic-ns-1:offer:epic-offer-1:market:us:start:2026-10-20T15:00:00.000Z",
     );
-    assert.equal(res.deal.id, "deal-epic-epic-offer-1");
+    assert.equal(res.deal.id, res.externalId);
     assert.equal(res.deal.store, "Epic Games Store");
     assert.equal(res.deal.priceCurrent, 0);
     assert.equal(res.deal.priceBase, 59.99);
@@ -75,7 +75,7 @@ describe("mapEpicFreeGameToDeal", () => {
     // GameSummary verification
     assert.ok(res.deal.gameSummary);
     assert.equal(res.deal.gameSummary.title, "Ghostwire: Tokyo");
-    assert.equal(res.deal.gameSummary.coverUrl, "https://example.com/gw-wide.jpg");
+    assert.equal(res.deal.gameSummary.coverUrl, "https://cdn1.epicgames.com/gw-wide.jpg");
     assert.equal(res.deal.gameSummary.steamAppId, undefined); // Preserves undefined -> unknown ownership on Steam
     assert.deepEqual(res.deal.gameSummary.storeRefs, [
       {
