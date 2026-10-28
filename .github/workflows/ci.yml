@@ -15,6 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
@@ -27,6 +31,26 @@ jobs:
 
       - name: Test
         run: bun run test
+
+      - name: Typecheck frontend
+        run: bun x tsc --noEmit
+
+      # Fixed commands; temporary local DB only. No project credentials or event input.
+      - name: Install isolated validation tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/inga-tools" --no-save --package-lock=false embedded-postgres@15.18.0-beta.17 pg@8.23.1 deno@2.9.6
+          chmod -R +x "$RUNNER_TEMP/inga-tools/node_modules" 2>/dev/null || true
+
+      - name: Typecheck Edge module graph
+        run: '"$RUNNER_TEMP/inga-tools/node_modules/.bin/deno" check --node-modules-dir=none --no-lock supabase/functions/content-ingest/index.ts'
+
+      - name: Validate isolated database fresh install and upgrade
+        env:
+          INGA_TEST_TOOLS: ${{ runner.temp }}/inga-tools
+          INGA_TEST_SCRATCH: ${{ runner.temp }}
+        run: |
+          node --experimental-strip-types scripts/verify-ingestion-db.mjs
+          INGA_UPGRADE=1 node --experimental-strip-types scripts/verify-ingestion-db.mjs
 
       - name: Build
         run: bun run build
